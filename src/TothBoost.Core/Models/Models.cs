@@ -79,6 +79,14 @@ namespace TothBoost.Core.Models
         public bool Protected { get; set; }
         public string? ProtectReason { get; set; }
         public bool IsService { get; init; }
+        /// <summary>Percentual de CPU (100% = 1 núcleo). &lt;0 = indisponível.</summary>
+        public double CpuPercent { get; set; } = -1;
+        /// <summary>Percentual de utilização da GPU. &lt;0 = indisponível.</summary>
+        public double GpuPercent { get; set; } = -1;
+        /// <summary>Leitura de disco em KB/s. &lt;0 = indisponível.</summary>
+        public double IoReadKbs { get; set; } = -1;
+        /// <summary>Gravação de disco em KB/s. &lt;0 = indisponível.</summary>
+        public double IoWriteKbs { get; set; } = -1;
     }
 
     public class ScheduledTaskInfo

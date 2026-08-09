@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Media;
 using TothBoost.Core.Models;
 
 namespace TothBoost.App
@@ -35,6 +36,9 @@ namespace TothBoost.App
         public bool IsProtected => S.IsProtected;
         public bool CanTouch => !S.IsProtected;
         public bool IsDriver => S.IsDriver;
+        /// <summary>Ligado = habilitado (inicialização automática); desligado = desabilitado.</summary>
+        public bool IsOn => S.StartKind != ServiceStartKind.Disabled;
+        public string ToggleTip => CanTouch ? (IsOn ? "Desabilitar este serviço" : "Habilitar este serviço") : "Protegido pelo sistema";
     }
 
     public class ProcRow : RowBase
@@ -46,9 +50,29 @@ namespace TothBoost.App
         public long MemMb => P.WorkingSetMb;
         public string Session => P.SessionName;
         public string Path => P.Path ?? "—";
-public bool IsProtected => P.Protected;
+        public bool IsProtected => P.Protected;
         public string ProtectReason => P.Protected ? "Processo crítico do Windows — não pode ser encerrado." : "";
         public string ProtectionLabel => P.Protected ? "PROTEGIDO" : "Livre";
+        public Brush ProtectionColor => P.Protected ? Green : Dim;
+
+        private static readonly Brush Green = new SolidColorBrush(Color.FromRgb(0x4A, 0xE0, 0x80));
+        private static readonly Brush Dim = new SolidColorBrush(Color.FromRgb(0x9C, 0xAB, 0xBE));
+
+        public string CpuText => P.CpuPercent < 0 ? "—" : P.CpuPercent.ToString("0.0") + "%";
+        public string GpuText => P.GpuPercent < 0 ? "—" : P.GpuPercent.ToString("0") + "%";
+        public string ReadText => FormatIo(P.IoReadKbs);
+        public string WriteText => FormatIo(P.IoWriteKbs);
+
+        private static string FormatIo(double kbs)
+        {
+            if (kbs < 0) return "—";
+            return kbs switch
+            {
+                >= 1024 * 1024 => (kbs / (1024 * 1024)).ToString("0.0") + " GB/s",
+                >= 1024 => (kbs / 1024).ToString("0.0") + " MB/s",
+                _ => kbs.ToString("0") + " KB/s"
+            };
+        }
     }
 
     public class TaskRow : RowBase
@@ -60,6 +84,7 @@ public bool IsProtected => P.Protected;
         public string State => T.Enabled ? "Habilitada" : "Desabilitada";
         public bool Enabled => T.Enabled;
         public string Author => T.Author ?? "—";
+        public bool IsOn => T.Enabled;
     }
 
     public class StartupRow : RowBase
@@ -71,6 +96,7 @@ public bool IsProtected => P.Protected;
         public string Command => I.Command ?? "";
         public string State => I.DisabledByTothBoost ? "Desabilitada (TothBoost)" : "Habilitada";
         public bool IsDisabledByTb => I.DisabledByTothBoost;
+        public bool IsOn => !I.DisabledByTothBoost;
     }
 
     public class TweakRow : RowBase

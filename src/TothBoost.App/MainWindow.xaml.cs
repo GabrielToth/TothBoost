@@ -232,7 +232,7 @@ namespace TothBoost.App
 
         private async Task AutoRefreshProcesses()
         {
-            if (!(ChkAutoRefresh.IsChecked ?? false) || _busy || Tabs.SelectedIndex != 1) return;
+            if (!(ChkAutoRefresh.IsChecked ?? false) || _busy || Tabs.SelectedIndex != 0) return;
             await RefreshProcesses();
         }
 
@@ -316,16 +316,14 @@ namespace TothBoost.App
             await RunAction(() => _engine.ApplyGamingPreset(_svcAll.Select(r => r.S)), "Perfil de jogos");
         }
 
-        private async void SvcRowDisable_Click(object sender, RoutedEventArgs e)
+        private async void SvcRowToggle_Click(object sender, RoutedEventArgs e)
         {
-            if ((sender as Button)?.DataContext is not SvcRow r || r.S.IsProtected) return;
-            await RunAction(() => _engine.DisableServices(new[] { r.Name }, _svcAll.Select(x => x.S)), "Desabilitar serviço: " + r.Name);
-        }
-
-        private async void SvcRowEnable_Click(object sender, RoutedEventArgs e)
-        {
-            if ((sender as Button)?.DataContext is not SvcRow r) return;
-            await RunAction(() => _engine.EnableServices(new[] { r.Name }, ServiceStartKind.Automatic), "Habilitar serviço: " + r.Name);
+            if ((sender as System.Windows.Controls.Primitives.ToggleButton)?.DataContext is not SvcRow r || r.S.IsProtected) return;
+            var on = ((System.Windows.Controls.Primitives.ToggleButton)sender).IsChecked == true;
+            if (on)
+                await RunAction(() => _engine.EnableServices(new[] { r.Name }, ServiceStartKind.Automatic), "Habilitar serviço: " + r.Name);
+            else
+                await RunAction(() => _engine.DisableServices(new[] { r.Name }, _svcAll.Select(x => x.S)), "Desabilitar serviço: " + r.Name);
         }
 
         private async void SvcRowStop_Click(object sender, RoutedEventArgs e)
@@ -417,16 +415,11 @@ namespace TothBoost.App
             _ = RunAction(() => _engine.SetTasksEnabled(
                 _taskAll.Where(r => r.IsChecked && !r.Enabled).Select(r => r.T).ToList(), true), "Habilitar tarefas");
 
-        private async void TaskRowDisable_Click(object sender, RoutedEventArgs e)
+        private async void TaskRowToggle_Click(object sender, RoutedEventArgs e)
         {
-            if ((sender as Button)?.DataContext is not TaskRow r) return;
-            await RunAction(() => _engine.SetTasksEnabled(new[] { r.T }, false), "Desabilitar tarefa: " + r.Name);
-        }
-
-        private async void TaskRowEnable_Click(object sender, RoutedEventArgs e)
-        {
-            if ((sender as Button)?.DataContext is not TaskRow r) return;
-            await RunAction(() => _engine.SetTasksEnabled(new[] { r.T }, true), "Habilitar tarefa: " + r.Name);
+            if ((sender as System.Windows.Controls.Primitives.ToggleButton)?.DataContext is not TaskRow r) return;
+            var on = ((System.Windows.Controls.Primitives.ToggleButton)sender).IsChecked == true;
+            await RunAction(() => _engine.SetTasksEnabled(new[] { r.T }, on), on ? "Habilitar tarefa: " + r.Name : "Desabilitar tarefa: " + r.Name);
         }
 
         // ---------- inicialização ----------
@@ -439,16 +432,14 @@ namespace TothBoost.App
             _ = RunAction(() => _engine.EnableStartups(
                 _startupAll.Where(r => r.IsChecked && r.IsDisabledByTb).Select(r => r.I).ToList()), "Habilitar inicialização");
 
-        private async void StartupRowDisable_Click(object sender, RoutedEventArgs e)
+        private async void StartupRowToggle_Click(object sender, RoutedEventArgs e)
         {
-            if ((sender as Button)?.DataContext is not StartupRow r) return;
-            await RunAction(() => _engine.DisableStartups(new[] { r.I }), "Desabilitar inicialização: " + r.Name);
-        }
-
-        private async void StartupRowEnable_Click(object sender, RoutedEventArgs e)
-        {
-            if ((sender as Button)?.DataContext is not StartupRow r) return;
-            await RunAction(() => _engine.EnableStartups(new[] { r.I }), "Habilitar inicialização: " + r.Name);
+            if ((sender as System.Windows.Controls.Primitives.ToggleButton)?.DataContext is not StartupRow r) return;
+            var on = ((System.Windows.Controls.Primitives.ToggleButton)sender).IsChecked == true;
+            if (on)
+                await RunAction(() => _engine.EnableStartups(new[] { r.I }), "Habilitar inicialização: " + r.Name);
+            else
+                await RunAction(() => _engine.DisableStartups(new[] { r.I }), "Desabilitar inicialização: " + r.Name);
         }
 
         // ---------- ajustes ----------

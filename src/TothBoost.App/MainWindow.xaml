@@ -39,18 +39,18 @@
         <!-- ===== Abas ===== -->
         <TabControl x:Name="Tabs" Margin="12,10,12,6" SelectedIndex="0">
 
-            <!-- ============ SERVIÇOS ============ -->
+            <!-- ============ PROCESSOS ============ -->
             <TabItem Header="Processos">
                 <DockPanel Margin="0,8,0,0">
-                    <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="10,10" Margin="0,0,0,10">
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="12,10" Margin="0,0,0,8">
                         <WrapPanel>
-                            <TextBox x:Name="ProcSearch" Width="230" TextChanged="ProcSearch_TextChanged" ToolTip="Buscar por nome"/>
+                            <TextBox x:Name="ProcSearch" Width="260" TextChanged="ProcSearch_TextChanged" ToolTip="Buscar por nome"/>
                             <TextBlock x:Name="ProcCount" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource TextDim}" FontSize="12"/>
-                            <Separator Margin="24"/>
+                            <Separator Width="24"/>
                             <Button x:Name="BtnProcKillSel" Style="{StaticResource BtnRed}" Content="Encerrar selecionados" Click="BtnProcKillSel_Click" ToolTip="Encerra processos selecionados (os protegidos ficam bloqueados)"/>
                             <Button x:Name="BtnProcRestartSel" Style="{StaticResource BtnPrimary}" Content="Reiniciar selecionados" Click="BtnProcRestartSel_Click"/>
                             <CheckBox x:Name="ChkAutoRefresh" Content="Atualização automática (2s)" VerticalAlignment="Center" Margin="12,0,0,0" IsChecked="True" Checked="AutoRefreshChanged" Unchecked="AutoRefreshChanged"/>
-                            <Button x:Name="BtnProcRefresh" Style="{StaticResource BtnPrimary}" Content="Atualizar agora" Click="BtnProcRefresh_Click"/>
+                            <Button x:Name="BtnProcRefresh" Style="{StaticResource BtnPrimary}" Content="Atualizar" Click="BtnProcRefresh_Click"/>
                         </WrapPanel>
                     </Border>
                     <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
@@ -63,18 +63,21 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="70" SortMemberPath="Pid"/>
-                            <DataGridTextColumn Header="Processo" Binding="{Binding Name}" Width="200" SortMemberPath="Name"/>
-                            <DataGridTextColumn Header="Memória (MB)" Binding="{Binding WorkingSet}" Width="110" SortMemberPath="WorkingSet"/>
-                            <DataGridTextColumn Header="Sessão" Binding="{Binding Session}" Width="90"/>
+                            <DataGridTextColumn Header="Processo" Binding="{Binding Name}" Width="190" SortMemberPath="Name"/>
+                            <DataGridTextColumn Header="CPU" Binding="{Binding CpuText}" Width="70" SortMemberPath="P.CpuPercent"/>
+                            <DataGridTextColumn Header="Memória (MB)" Binding="{Binding MemMb}" Width="95" SortMemberPath="MemMb"/>
+                            <DataGridTextColumn Header="GPU" Binding="{Binding GpuText}" Width="65"/>
+                            <DataGridTextColumn Header="Leitura" Binding="{Binding ReadText}" Width="85"/>
+                            <DataGridTextColumn Header="Gravação" Binding="{Binding WriteText}" Width="90"/>
                             <DataGridTextColumn Header="Caminho" Binding="{Binding Path}" Width="*"/>
-                            <DataGridTemplateColumn Header="Proteção" Width="170">
+                            <DataGridTemplateColumn Header="Proteção" Width="140">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding ProtectionLabel}" Foreground="{Binding ProtectionColor}" FontWeight="SemiBold"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Ações" Width="150">
+                            <DataGridTemplateColumn Header="Ações" Width="140">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal">
@@ -89,14 +92,14 @@
                 </DockPanel>
             </TabItem>
 
-            <!-- ============ TAREFAS ============ -->
+            <!-- ============ INICIALIZAÇÃO ============ -->
             <TabItem Header="Inicialização">
                 <DockPanel Margin="0,8,0,0">
-                    <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="10,10" Margin="0,0,0,10">
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="12,10" Margin="0,0,0,8">
                         <WrapPanel>
-                            <TextBox x:Name="StartupSearch" Width="230" TextChanged="StartupSearch_TextChanged" ToolTip="Buscar"/>
+                            <TextBox x:Name="StartupSearch" Width="260" TextChanged="StartupSearch_TextChanged" ToolTip="Buscar"/>
                             <TextBlock x:Name="StartupCount" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource TextDim}" FontSize="12"/>
-                            <Separator Margin="24"/>
+                            <Separator Width="24"/>
                             <Button x:Name="BtnStartupDisableSel" Style="{StaticResource BtnGreen}" Content="Desabilitar selecionados" Click="BtnStartupDisableSel_Click"/>
                             <Button x:Name="BtnStartupEnableSel" Style="{StaticResource BtnPrimary}" Content="Habilitar selecionados" Click="BtnStartupEnableSel_Click"/>
                             <Button x:Name="BtnStartupRefresh" Style="{StaticResource BtnPrimary}" Content="Atualizar" Click="BtnStartupRefresh_Click"/>
@@ -115,13 +118,10 @@
                             <DataGridTextColumn Header="Local" Binding="{Binding Location}" Width="260"/>
                             <DataGridTextColumn Header="Comando" Binding="{Binding Command}" Width="520"/>
                             <DataGridTextColumn Header="Estado" Binding="{Binding State}" Width="170"/>
-                            <DataGridTemplateColumn Header="Ações" Width="190">
+                            <DataGridTemplateColumn Header="Ações" Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Content="Desabilitar" Style="{StaticResource BtnGreen}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="StartupRowDisable_Click"/>
-                                            <Button Content="Habilitar" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="StartupRowEnable_Click"/>
-                                        </StackPanel>
+                                        <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn}" Click="StartupRowToggle_Click" ToolTip="{Binding State}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -131,7 +131,7 @@
                 </DockPanel>
             </TabItem>
 
-            <!-- ============ PERFIL & AJUSTES ============ -->
+            <!-- ============ SERVIÇOS ============ -->
             <TabItem Header="Serviços">
                 <DockPanel Margin="0,8,0,0">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="12,10" Margin="0,0,0,8">
@@ -164,13 +164,12 @@
                             <DataGridTextColumn Header="Classificação" Binding="{Binding RiskLabel}" SortMemberPath="RiskLabel" Width="150"/>
                             <DataGridTextColumn Header="Categoria" Binding="{Binding Category}" Width="120"/>
                             <DataGridTextColumn Header="Descrição / Motivo" Binding="{Binding Description}" Width="340"/>
-                            <DataGridTemplateColumn Header="Ações" Width="200">
+                            <DataGridTemplateColumn Header="Ações" Width="150">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                            <Button Content="Des." Width="52" Style="{StaticResource BtnGreen}" IsEnabled="{Binding CanTouch}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="SvcRowDisable_Click" ToolTip="Desabilitar este serviço e pará-lo"/>
-                                            <Button Content="Hab." Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="SvcRowEnable_Click" ToolTip="Voltar a inicialização automática e iniciar"/>
-                                            <Button Content="P á rar" Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="SvcRowStop_Click" ToolTip="Apenas parar agora (não altera a inicialização)"/>
+                                            <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn}" IsEnabled="{Binding CanTouch}" Click="SvcRowToggle_Click" ToolTip="{Binding ToggleTip}"/>
+                                            <Button Content="Parar" Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Margin="6,0,0,0" Click="SvcRowStop_Click" ToolTip="Apenas parar agora (não altera a inicialização)"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -180,14 +179,14 @@
                 </DockPanel>
             </TabItem>
 
-            <!-- ============ PROCESSOS ============ -->
+            <!-- ============ TAREFAS AGENDADAS ============ -->
             <TabItem Header="Tarefas Agendadas">
                 <DockPanel Margin="0,8,0,0">
-                    <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="10,10" Margin="0,0,0,10">
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="12,10" Margin="0,0,0,8">
                         <WrapPanel>
-                            <TextBox x:Name="TaskSearch" Width="230" TextChanged="TaskSearch_TextChanged" ToolTip="Buscar"/>
+                            <TextBox x:Name="TaskSearch" Width="260" TextChanged="TaskSearch_TextChanged" ToolTip="Buscar"/>
                             <TextBlock x:Name="TaskCount" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource TextDim}" FontSize="12"/>
-                            <Separator Margin="24"/>
+                            <Separator Width="24"/>
                             <Button x:Name="BtnTaskDisableSel" Style="{StaticResource BtnGreen}" Content="Desabilitar selecionadas" Click="BtnTaskDisableSel_Click"/>
                             <Button x:Name="BtnTaskEnableSel" Style="{StaticResource BtnPrimary}" Content="Habilitar selecionadas" Click="BtnTaskEnableSel_Click"/>
                             <Button x:Name="BtnTaskRefresh" Style="{StaticResource BtnPrimary}" Content="Atualizar" Click="BtnTaskRefresh_Click"/>
@@ -206,13 +205,10 @@
                             <DataGridTextColumn Header="Caminho completo" Binding="{Binding FullPath}" Width="430"/>
                             <DataGridTextColumn Header="Estado" Binding="{Binding State}" Width="110"/>
                             <DataGridTextColumn Header="Autor" Binding="{Binding Author}" Width="160"/>
-                            <DataGridTemplateColumn Header="Ações" Width="190">
+                            <DataGridTemplateColumn Header="Ações" Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Content="Desabilitar" Style="{StaticResource BtnGreen}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="TaskRowDisable_Click"/>
-                                            <Button Content="Habilitar" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="TaskRowEnable_Click"/>
-                                        </StackPanel>
+                                        <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn}" Click="TaskRowToggle_Click" ToolTip="{Binding State}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -221,7 +217,7 @@
                 </DockPanel>
             </TabItem>
 
-            <!-- ============ INICIALIZAÇÃO ============ -->
+            <!-- ============ PERFIL ============ -->
             <TabItem Header="Perfil">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,8,0,0">
