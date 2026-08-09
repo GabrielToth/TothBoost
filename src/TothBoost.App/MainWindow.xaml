@@ -121,7 +121,7 @@
                             <DataGridTemplateColumn Header="Ações" Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn}" Click="StartupRowToggle_Click" ToolTip="{Binding State}"/>
+                                        <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" Click="StartupRowToggle_Click" ToolTip="{Binding State}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -168,7 +168,7 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                            <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn}" IsEnabled="{Binding CanTouch}" Click="SvcRowToggle_Click" ToolTip="{Binding ToggleTip}"/>
+                                            <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" IsEnabled="{Binding CanTouch}" Click="SvcRowToggle_Click" ToolTip="{Binding ToggleTip}"/>
                                             <Button Content="Parar" Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Margin="6,0,0,0" Click="SvcRowStop_Click" ToolTip="Apenas parar agora (não altera a inicialização)"/>
                                         </StackPanel>
                                     </DataTemplate>
@@ -208,7 +208,7 @@
                             <DataGridTemplateColumn Header="Ações" Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn}" Click="TaskRowToggle_Click" ToolTip="{Binding State}"/>
+                                        <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" Click="TaskRowToggle_Click" ToolTip="{Binding State}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>

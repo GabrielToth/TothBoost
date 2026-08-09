@@ -11,6 +11,9 @@ namespace TothBoost.App
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            AppDomain.CurrentDomain.UnhandledException += (_, a) => LogCrash(a.ExceptionObject as Exception);
+            DispatcherUnhandledException += (_, a) => { LogCrash(a.Exception); };
+
             var shotArg = e.Args.FirstOrDefault(a => a.StartsWith("--shot=", StringComparison.OrdinalIgnoreCase));
 
             if (e.Args.Any(a => a.Equals("--smoketest", StringComparison.OrdinalIgnoreCase)))
@@ -40,6 +43,9 @@ namespace TothBoost.App
                 return;
             }
 
+            var tabArg = e.Args.FirstOrDefault(a => a.StartsWith("--tab=", StringComparison.OrdinalIgnoreCase));
+            _tabToSelect = tabArg?[6..];
+
             base.OnStartup(e);
 
             if (shotArg is not null)
@@ -54,6 +60,7 @@ namespace TothBoost.App
                         {
                             await Task.Delay(1500);
                             if (MainWindow is not TothBoost.App.MainWindow win) { Shutdown(); return; }
+                            SelectTab(win);
                             win.UpdateLayout();
 
                             if (string.IsNullOrEmpty(outPath))
@@ -80,12 +87,52 @@ namespace TothBoost.App
                         Shutdown();
                     });
             }
+            else if (_tabToSelect is not null)
+            {
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+                {
+                    try
+                    {
+                        if (MainWindow is TothBoost.App.MainWindow win) SelectTab(win);
+                    }
+                    catch { }
+                });
+            }
         }
+
+        private static void SelectTab(TothBoost.App.MainWindow win)
+        {
+            if (_tabToSelect is null) return;
+            var header = _tabToSelect;
+            for (int i = 0; i < win.Tabs.Items.Count; i++)
+            {
+                if (win.Tabs.Items[i] is System.Windows.Controls.TabItem ti &&
+                    (ti.Header?.ToString()?.Equals(header, StringComparison.OrdinalIgnoreCase) == true ||
+                     ti.Header?.ToString()?.Replace(" ", "")?.Equals(header.Replace(" ", ""), StringComparison.OrdinalIgnoreCase) == true))
+                {
+                    win.Tabs.SelectedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        private static string? _tabToSelect;
 
         protected override void OnExit(ExitEventArgs e)
         {
             _mutex?.Dispose();
             base.OnExit(e);
+        }
+
+        private static void LogCrash(Exception? ex)
+        {
+            if (ex is null) return;
+            try
+            {
+                File.AppendAllText(Path.Combine(Path.GetTempPath(), "tothboost-crash.log"),
+                    $"===== {DateTime.Now:u} =====" + Environment.NewLine + ex + Environment.NewLine);
+            }
+            catch { }
         }
 
         /// <summary>
