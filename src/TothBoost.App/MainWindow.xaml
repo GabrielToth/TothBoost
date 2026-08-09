@@ -3,8 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="TothBoost — Otimizador de Desempenho para Jogos (Windows 11)"
         Width="1320" Height="820" WindowStartupLocation="CenterScreen"
-        FontSize="13">
+        FontSize="13" Background="{StaticResource Bg0}">
 
+    <Border Background="{StaticResource Bg0}">
     <DockPanel>
 
         <!-- ===== Topo ===== -->
@@ -298,4 +299,5 @@
             </DockPanel>
         </Border>
     </DockPanel>
+    </Border>
 </Window>

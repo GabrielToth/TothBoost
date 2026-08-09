@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Resultado da operação" Width="760" Height="560" WindowStartupLocation="CenterOwner"
         Background="{StaticResource Bg0}" FontSize="13">
+    <Border Background="{StaticResource Bg0}">
     <DockPanel Margin="12">
         <TextBlock x:Name="SummaryText" DockPanel.Dock="Top" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Text}" Margin="0,0,0,10"/>
         <Button x:Name="BtnClose" DockPanel.Dock="Bottom" Content="Fechar" Style="{StaticResource BtnPrimary}" Width="120" HorizontalAlignment="Right" Margin="0,12,0,0" Click="BtnClose_Click"/>
@@ -19,4 +20,5 @@
             </ListView.ItemTemplate>
         </ListView>
     </DockPanel>
+    </Border>
 </Window>

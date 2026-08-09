@@ -11,6 +11,8 @@ namespace TothBoost.App
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            var shotArg = e.Args.FirstOrDefault(a => a.StartsWith("--shot=", StringComparison.OrdinalIgnoreCase));
+
             if (e.Args.Any(a => a.Equals("--smoketest", StringComparison.OrdinalIgnoreCase)))
             {
                 RunSmokeTest();
@@ -39,6 +41,42 @@ namespace TothBoost.App
             }
 
             base.OnStartup(e);
+
+            if (shotArg is not null)
+            {
+                // Captura interna do conteudo da janela (debito: ferramenta de
+                // verificacao) -- gera PNG real da arvore visual WPF.
+                var outPath = shotArg[7..];
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+                    async () =>
+                    {
+                        try
+                        {
+                            await Task.Delay(1500);
+                            if (MainWindow is not TothBoost.App.MainWindow win) { Shutdown(); return; }
+                            win.UpdateLayout();
+
+                            if (string.IsNullOrEmpty(outPath))
+                            {
+                                // nada: difere da GUI normal
+                                Shutdown(); return;
+                            }
+
+                            var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                                (int)win.ActualWidth, (int)win.ActualHeight, 96, 96,
+                                System.Windows.Media.PixelFormats.Pbgra32);
+                            rtb.Render(win);
+                            var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                            enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+                            using (var fs = System.IO.File.Create(outPath))
+                            {
+                                enc.Save(fs);
+                            }
+                        }
+                        catch { }
+                        Shutdown();
+                    });
+            }
         }
 
         protected override void OnExit(ExitEventArgs e)

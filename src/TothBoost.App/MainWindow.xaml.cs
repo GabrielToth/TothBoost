@@ -48,6 +48,13 @@ namespace TothBoost.App
                 // DWMWA_USE_IMMERSIVE_DARK_MODE (20 no Win11, 19 no Win10)
                 _ = DwmSetWindowAttribute(hwnd, 20, ref dark, 4);
                 _ = DwmSetWindowAttribute(hwnd, 19, ref dark, 4);
+                // Bordas/caption/texto escuros (Win11): COLORREF 0x00BBGGRR
+                var border = 0x00140F0B; // #0B0F14
+                var caption = 0x0011161D; // #11161D
+                var text = 0x00F3EDE6;   // #E6EDF3
+                _ = DwmSetWindowAttribute(hwnd, 34, ref border, 4);  // DWMWA_BORDER_COLOR
+                _ = DwmSetWindowAttribute(hwnd, 35, ref caption, 4); // DWMWA_CAPTION_COLOR
+                _ = DwmSetWindowAttribute(hwnd, 36, ref text, 4);    // DWMWA_TEXT_COLOR
             }
             catch { }
         }
