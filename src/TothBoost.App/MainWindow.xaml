@@ -224,6 +224,19 @@
 
                         <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                             <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="PERFIL ATUAL: " FontSize="15" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+                                    <TextBlock x:Name="TxtCurrentProfile" Text="—" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Accent}"/>
+                                </StackPanel>
+                                <TextBlock Text="O perfil Default contém as configurações salvas do usuário atual: estado de serviços, tarefas agendadas, inicialização e ajustes. Em breve será possível criar e alternar entre vários perfis." Margin="0,8,0,0" Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
+                                <WrapPanel Margin="0,12,0,0">
+                                    <Button x:Name="BtnSaveProfile" Style="{StaticResource BtnPrimary}" Content="Salvar estado atual no perfil" Click="BtnSaveProfile_Click"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
                                 <TextBlock Text="SEGURANÇA TOTAL — NADA É EXCLUÍDO" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Green}"/>
                                 <TextBlock Text="Na PRIMEIRA abertura neste computador, o TothBoost cria OBRIGATORIAMENTE um ponto de restauração do Windows e, em seguida, grava o perfil inicial completo: o estado original de TODOS os serviços, tarefas agendadas, inicialização e ajustes — antes de você poder modificar qualquer coisa. Nada é excluído e tudo pode ser restaurado com 1 clique." Margin="0,8,0,0" Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
                                 <WrapPanel Margin="0,14,0,0">

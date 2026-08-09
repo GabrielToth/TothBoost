@@ -98,6 +98,9 @@ namespace TothBoost.App
 
                 await Task.Run(_engine.EnsureBaseline);
 
+                await Task.Run(_engine.EnsureDefaultProfile);
+                TxtCurrentProfile.Text = _engine.CurrentProfileName;
+
                 await RefreshServices();
                 await RefreshTasks();
                 await RefreshStartups();
@@ -454,6 +457,29 @@ namespace TothBoost.App
         {
             if ((sender as Button)?.DataContext is not TweakRow r) return;
             await RunAction(() => _engine.RevertTweak(r.T.Id), "Reverter ajuste: " + r.T.Name);
+        }
+
+        // ---------- perfis ----------
+
+        private async void BtnSaveProfile_Click(object sender, RoutedEventArgs e)
+        {
+            if (_busy) return;
+            _busy = true;
+            SetBusy(true);
+            try
+            {
+                await Task.Run(_engine.SaveProfileCapture);
+                StatusText.Text = "Estado atual salvo no perfil '" + _engine.CurrentProfileName + "'.";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Erro ao salvar o perfil: " + ex.Message, "TothBoost", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _busy = false;
+                SetBusy(false);
+            }
         }
 
         // ---------- snapshots / restore ----------

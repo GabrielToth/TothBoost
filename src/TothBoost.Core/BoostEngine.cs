@@ -71,6 +71,38 @@ namespace TothBoost.Core
 
         public List<ScheduledTaskInfo> GetTasks() => _taskScanner.ScanAll();
 
+        // ---------- perfis ----------
+
+        public string CurrentProfileName => ProfileService.CurrentName() ?? "Default";
+
+        /// <summary>Garante o perfil Default com as configurações salvas do usuário atual.</summary>
+        public void EnsureDefaultProfile()
+        {
+            ProfileService.EnsureDefault();
+            var name = ProfileService.CurrentName() ?? "Default";
+            if (!ProfileService.CaptureExists(name)) SaveProfileCapture();
+        }
+
+        public void SaveProfileCapture()
+        {
+            var capture = new ProfileCapture
+            {
+                Services = GetServices()
+                    .Select(s => new ProfileServiceState { Name = s.Name, StartKind = (int)s.StartKind, Protected = s.IsProtected })
+                    .ToList(),
+                Tasks = GetTasks()
+                    .Select(t => new ProfileTaskState { FullPath = t.FullPath, Name = t.Name, Enabled = t.Enabled })
+                    .ToList(),
+                Startups = GetStartups()
+                    .Select(i => new ProfileStartupState { Name = i.Name, Location = i.Location, Exists = i.Existing, DisabledByTothBoost = i.DisabledByTothBoost })
+                    .ToList(),
+                Tweaks = GetTweaks()
+                    .Select(t => new ProfileTweakState { Id = t.Id, Applied = t.IsApplied })
+                    .ToList()
+            };
+            ProfileService.SaveCapture(ProfileService.CurrentName() ?? "Default", capture);
+        }
+
         public List<StartupItem> GetStartups() => new StartupScanner().ScanAll();
 
         public List<TweakInfo> GetTweaks()
