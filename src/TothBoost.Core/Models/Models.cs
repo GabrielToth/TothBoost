@@ -129,6 +129,13 @@ namespace TothBoost.Core.Models
         public long FileSize { get; init; }
     }
 
+    public class RestorePointInfo
+    {
+        public long Sequence { get; init; }
+        public DateTime When { get; init; }
+        public string? Description { get; init; }
+    }
+
     public class ActionReport
     {
         public List<ActionLine> Lines { get; } = new();

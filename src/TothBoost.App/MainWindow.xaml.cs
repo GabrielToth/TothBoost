@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using TothBoost.Core;
 using TothBoost.Core.Models;
+using TothBoost.Core.Snapshot;
 
 namespace TothBoost.App
 {
@@ -100,12 +101,14 @@ namespace TothBoost.App
 
                 await Task.Run(_engine.EnsureDefaultProfile);
                 TxtCurrentProfile.Text = _engine.CurrentProfileName;
+                RefreshProfilesUi();
 
                 await RefreshServices();
                 await RefreshTasks();
                 await RefreshStartups();
                 await RefreshTweaks();
                 await RefreshProcesses();
+                await RefreshRestorePointsUi();
                 UpdateBaselineBadge();
                 if (!_engine.IsInitialized)
                     StatusText.Text = "Pronto. Selecione itens e use os botões de habilitar/desabilitar. " +
@@ -160,8 +163,9 @@ namespace TothBoost.App
                     6 => r.S.RunningState == "Executando",
                     _ => true
                 })).ToList();
-            GridServices.ItemsSource = view;
-            SvcCount.Text = $"{view.Count} de {_svcAll.Count} serviços";
+            GridServices.ItemsSource = view.Where(r => r.CanTouch).ToList();
+            GridSvcSystem.ItemsSource = view.Where(r => !r.CanTouch).ToList();
+            SvcCount.Text = $"{view.Count} de {_svcAll.Count} serviços · {view.Count(r => !r.CanTouch)} protegidos";
         }
 
         private void ApplyProcFilter()
@@ -169,8 +173,9 @@ namespace TothBoost.App
             var q = (ProcSearch.Text ?? "").Trim().ToLowerInvariant();
             var view = _procAll.Where(r => q.Length == 0 || r.Name.ToLowerInvariant().Contains(q) ||
                 (r.Path != null && r.Path.ToLowerInvariant().Contains(q))).ToList();
-            GridProcesses.ItemsSource = view;
-            ProcCount.Text = $"{view.Count} de {_procAll.Count} processos";
+            GridProcesses.ItemsSource = view.Where(r => !r.IsProtected).ToList();
+            GridProcSystem.ItemsSource = view.Where(r => r.IsProtected).ToList();
+            ProcCount.Text = $"{view.Count(r => !r.IsProtected)} seus processos · {view.Count(r => r.IsProtected)} do sistema";
         }
 
         private void ApplyTaskFilter()
@@ -337,6 +342,23 @@ namespace TothBoost.App
 
         // ---------- processos ----------
 
+        private void BtnProcSelectAll_Click(object sender, RoutedEventArgs e)
+        {
+            var marked = 0;
+            if (GridProcesses.ItemsSource is System.Collections.IEnumerable rows)
+            {
+                foreach (var r in rows.OfType<ProcRow>())
+                {
+                    if (r.IsProtected || r.IsChecked) continue;
+                    r.IsChecked = true;
+                    marked++;
+                }
+            }
+            StatusText.Text = marked > 0
+                ? $"{marked} processo(s) marcado(s). Os protegidos do sistema ficaram de fora."
+                : "Nenhum processo novo para marcar (os protegidos ficam de fora).";
+        }
+
         private async void BtnProcKillSel_Click(object sender, RoutedEventArgs e)
         {
             var sel = _procAll.Where(r => r.IsChecked && !r.IsProtected).ToList();
@@ -461,15 +483,63 @@ namespace TothBoost.App
 
         // ---------- perfis ----------
 
-        private async void BtnSaveProfile_Click(object sender, RoutedEventArgs e)
+        private void BtnSaveProfile_Click(object sender, RoutedEventArgs e) => SaveWithRecommendation(null);
+
+        private void BtnProfileSaveHere_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as Button)?.DataContext is not ProfileCard c) return;
+            SaveWithRecommendation(c.Name);
+        }
+
+        /// <summary>
+        /// Salva o estado atual no perfil indicado. Se for o Default, recomenda
+        /// salvar em outro perfil (o Default é o save total / referência original).
+        /// </summary>
+        private async void SaveWithRecommendation(string? targetName)
         {
             if (_busy) return;
+            var target = targetName ?? _engine.CurrentProfileName;
+            if (string.Equals(target, "Default", StringComparison.OrdinalIgnoreCase))
+            {
+                var r = MessageBox.Show(
+                    "O perfil Default é o save total — o estado original de referência desta máquina.\n\n" +
+                    "Recomendamos salvar em um perfil diferente: você pode criar um novo ou " +
+                    "sobrescrever o perfil que escolher, ou continuar salvando em outros novos.\n\n" +
+                    "Deseja salvar em outro perfil?",
+                    "Salvar perfil", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                if (r == MessageBoxResult.Cancel) return;
+                if (r == MessageBoxResult.Yes)
+                {
+                    var name = PromptProfileName();
+                    if (string.IsNullOrWhiteSpace(name)) return;
+                    if (ProfileService.Exists(name))
+                    {
+                        var over = MessageBox.Show($"O perfil '{name}' já existe. Sobrescrever o estado dele?",
+                            "Sobrescrever perfil", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                        if (over != MessageBoxResult.Yes) return;
+                    }
+                    _engine.CreateProfile(name);
+                    target = name;
+                }
+                else
+                {
+                    var ow = MessageBox.Show("Sobrescrever o perfil Default mesmo assim?",
+                        "Sobrescrever Default", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    if (ow != MessageBoxResult.Yes) return;
+                }
+            }
+            await SaveTo(target);
+        }
+
+        private async Task SaveTo(string name)
+        {
             _busy = true;
             SetBusy(true);
             try
             {
-                await Task.Run(_engine.SaveProfileCapture);
-                StatusText.Text = "Estado atual salvo no perfil '" + _engine.CurrentProfileName + "'.";
+                await Task.Run(() => _engine.SaveProfileCaptureTo(name));
+                StatusText.Text = "Estado atual salvo no perfil '" + name + "'.";
+                RefreshProfilesUi();
             }
             catch (Exception ex)
             {
@@ -482,19 +552,133 @@ namespace TothBoost.App
             }
         }
 
-        // ---------- snapshots / restore ----------
-
-        private async void BtnSnapshotNow_Click(object sender, RoutedEventArgs e)
+        private void BtnProfileUse_Click(object sender, RoutedEventArgs e)
         {
-            var name = "manual-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
-            await RunAction(() =>
-            {
-                _engine.CreateSnapshot(name);
-                var rep = new ActionReport();
-                rep.Add("Snapshot", name, true, "estado atual salvo");
-                return rep;
-            }, "Criar snapshot manual");
+            if ((sender as Button)?.DataContext is not ProfileCard c) return;
+            _engine.SelectProfile(c.Name);
+            RefreshProfilesUi();
+            StatusText.Text = "Perfil selecionado: '" + c.Name + "' — próximo salvamento vai para ele.";
         }
+
+        private void BtnProfileCreate_Click(object sender, RoutedEventArgs e)
+        {
+            var name = PromptProfileName();
+            if (string.IsNullOrWhiteSpace(name)) return;
+            if (ProfileService.Exists(name))
+            {
+                MessageBox.Show($"Já existe um perfil chamado '{name}'.",
+                    "Criar perfil", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            _engine.CreateProfile(name);
+            RefreshProfilesUi();
+            StatusText.Text = "Perfil '" + name + "' criado e selecionado. Use 'Salvar estado atual' para gravá-lo.";
+        }
+
+        private bool _cardsView = true;
+
+        private void BtnViewToggle_Click(object sender, RoutedEventArgs e)
+        {
+            _cardsView = !_cardsView;
+            ProfileCards.Visibility = _cardsView ? Visibility.Visible : Visibility.Collapsed;
+            GridProfiles.Visibility = _cardsView ? Visibility.Collapsed : Visibility.Visible;
+            BtnViewToggle.Content = _cardsView ? "Ver como lista" : "Ver como cards";
+        }
+
+        private void RefreshProfilesUi()
+        {
+            var metas = _engine.ListProfiles();
+            var cur = _engine.CurrentProfileName;
+            var list = metas.Select(m => new ProfileCard(m,
+                string.Equals(m.Name, cur, StringComparison.OrdinalIgnoreCase))).ToList();
+            ProfileCards.ItemsSource = list;
+            GridProfiles.ItemsSource = list;
+            TxtCurrentProfile.Text = cur;
+        }
+
+        private string? PromptProfileName()
+        {
+            var win = new Window
+            {
+                Title = "Novo perfil — TothBoost",
+                Width = 420, Height = 178,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                Background = new SolidColorBrush(Color.FromRgb(0x0B, 0x0F, 0x14)),
+                Foreground = Brushes.White,
+                WindowStyle = WindowStyle.ToolWindow,
+                ResizeMode = ResizeMode.NoResize,
+                ShowInTaskbar = false
+            };
+            var panel = new StackPanel { Margin = new Thickness(16) };
+            panel.Children.Add(new TextBlock { Text = "Nome do novo perfil:", Foreground = Brushes.White });
+            var box = new TextBox { Margin = new Thickness(0, 10, 0, 14), Text = "meu-perfil" };
+            panel.Children.Add(box);
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var ok = new Button { Content = "Criar", IsDefault = true, Width = 88, Margin = new Thickness(0, 0, 8, 0) };
+            var cancel = new Button { Content = "Cancelar", IsCancel = true, Width = 88 };
+            buttons.Children.Add(ok);
+            buttons.Children.Add(cancel);
+            panel.Children.Add(buttons);
+            win.Content = panel;
+            string? result = null;
+            ok.Click += (_, _) => { result = box.Text.Trim(); win.DialogResult = true; };
+            box.KeyDown += (_, a) =>
+            {
+                if (a.Key == System.Windows.Input.Key.Enter) { result = box.Text.Trim(); win.DialogResult = true; }
+            };
+            win.Loaded += (_, _) => { box.Focus(); box.SelectAll(); };
+            return win.ShowDialog() == true ? result : null;
+        }
+
+        // ---------- pontos de restauração ----------
+
+        private async Task RefreshRestorePointsUi()
+        {
+            try
+            {
+                var pts = await Task.Run(_engine.ListRestorePoints);
+                var rows = pts.Select(p => new RestorePointRow(p)).ToList();
+                GridRestorePoints.ItemsSource = rows;
+                if (rows.Count == 0)
+                    TxtRestorePointInfo.Text = "Nenhum ponto de restauração encontrado nesta máquina — use o botão abaixo para criar um.";
+            }
+            catch (Exception ex)
+            {
+                TxtRestorePointInfo.Text = "Falha ao listar pontos: " + ex.Message;
+            }
+        }
+
+        private async void BtnRestorePointDelete_Click(object sender, RoutedEventArgs e)
+        {
+            if (_busy || (sender as Button)?.DataContext is not RestorePointRow r) return;
+            var ok = MessageBox.Show(
+                $"Excluir o ponto de restauração '{r.Description}' criado em {r.WhenText}?\n\n" +
+                "POR CONTA E RISCO: esta ação remove um ponto do Windows de forma definitiva e não pode ser desfeita.",
+                "Excluir ponto de restauração", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (ok != MessageBoxResult.Yes) return;
+            _busy = true;
+            SetBusy(true);
+            try
+            {
+                var (delOk, msg) = await Task.Run(() => _engine.DeleteRestorePoint(r.Seq));
+                StatusText.Text = msg;
+                MessageBox.Show(msg, "Excluir ponto de restauração", MessageBoxButton.OK,
+                    delOk ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                await RefreshRestorePointsUi();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Erro: " + ex.Message, "TothBoost", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _busy = false;
+                SetBusy(false);
+            }
+        }
+
+        private void BtnRefreshRestorePoints_Click(object sender, RoutedEventArgs e) => _ = RefreshRestorePointsUi();
 
         private async void BtnCreateRestorePoint_Click(object sender, RoutedEventArgs e)
         {
@@ -505,6 +689,7 @@ namespace TothBoost.App
             try
             {
                 var (ok, msg) = await Task.Run(_engine.CreateRestorePointNow);
+                await RefreshRestorePointsUi();
                 TxtRestorePointInfo.Text = msg;
                 StatusText.Text = ok ? "Ponto de restauração criado com sucesso." : "Ponto de restauração NÃO criado — veja o motivo abaixo.";
                 TxtBadgeRestore.Text = ok ? "Ponto de restauração: OK" : "Ponto de restauração: NÃO CRIADO";

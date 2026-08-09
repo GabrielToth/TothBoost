@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using TothBoost.Core.Models;
+using TothBoost.Core.Snapshot;
 
 namespace TothBoost.App
 {
@@ -108,5 +109,30 @@ namespace TothBoost.App
         public string Category => T.Category;
         public string State => T.IsApplied ? "Aplicado" : "Não aplicado";
         public bool IsApplied => T.IsApplied;
+    }
+
+    public class ProfileCard
+    {
+        public ProfileService.ProfileMeta M { get; }
+        public ProfileCard(ProfileService.ProfileMeta m, bool isCurrent) { M = m; IsCurrent = isCurrent; }
+        public string Name => M.Name ?? "?";
+        public bool IsDefault => M.IsDefault;
+        public string KindLabel => IsDefault ? "PADRÃO — save total (estado original)" : "Perfil criado pelo usuário";
+        public string HostName => M.HostName ?? "";
+        public string CreatedText => "Criado em " + M.CreatedUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+        public string LastSavedText => M.LastSavedUtc is DateTime d
+            ? "Salvo em " + d.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+            : "Nunca salvo";
+        public bool IsCurrent { get; }
+        public string Initials => string.IsNullOrEmpty(Name) ? "?" : Name[..1].ToUpperInvariant();
+    }
+
+    public class RestorePointRow
+    {
+        public RestorePointInfo P { get; }
+        public RestorePointRow(RestorePointInfo p) => P = p;
+        public long Seq => P.Sequence;
+        public string Description => string.IsNullOrEmpty(P.Description) ? "Ponto de restauração" : P.Description;
+        public string WhenText => P.When.ToString("dd/MM/yyyy HH:mm:ss");
     }
 }

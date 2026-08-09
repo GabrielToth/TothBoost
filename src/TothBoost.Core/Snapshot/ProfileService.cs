@@ -22,6 +22,7 @@ namespace TothBoost.Core.Snapshot
             public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
             public string? HostName { get; set; }
             public bool IsDefault { get; set; }
+            public DateTime? LastSavedUtc { get; set; }
         }
 
         private sealed class MetaFile
@@ -85,6 +86,67 @@ namespace TothBoost.Core.Snapshot
             lock (Sync)
             {
                 return File.Exists(Path.Combine(Root, Sanitize(profileName) + ".json"));
+            }
+        }
+
+        /// <summary>Cria um novo perfil e o torna o atual. Se já existir, apenas seleciona.</summary>
+        public static void Create(string name)
+        {
+            lock (Sync)
+            {
+                var meta = LoadMeta();
+                var existing = meta.Profiles.FirstOrDefault(p =>
+                    string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (existing is not null)
+                {
+                    meta.Current = existing.Name;
+                    SaveMeta(meta);
+                    return;
+                }
+                meta.Profiles.Add(new ProfileMeta
+                {
+                    Name = name,
+                    CreatedUtc = DateTime.UtcNow,
+                    HostName = Environment.MachineName,
+                    IsDefault = false
+                });
+                meta.Current = name;
+                SaveMeta(meta);
+            }
+        }
+
+        public static bool Exists(string name)
+        {
+            lock (Sync)
+            {
+                var meta = LoadMeta();
+                return meta.Profiles.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        public static void Select(string name)
+        {
+            lock (Sync)
+            {
+                var meta = LoadMeta();
+                var p = meta.Profiles.FirstOrDefault(x =>
+                    string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (p is null) return;
+                meta.Current = p.Name;
+                SaveMeta(meta);
+            }
+        }
+
+        public static void MarkSaved(string name)
+        {
+            lock (Sync)
+            {
+                var meta = LoadMeta();
+                var p = meta.Profiles.FirstOrDefault(x =>
+                    string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (p is null) return;
+                p.LastSavedUtc = DateTime.UtcNow;
+                SaveMeta(meta);
             }
         }
 

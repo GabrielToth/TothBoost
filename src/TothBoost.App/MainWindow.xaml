@@ -47,48 +47,95 @@
                             <TextBox x:Name="ProcSearch" Width="260" TextChanged="ProcSearch_TextChanged" ToolTip="Buscar por nome"/>
                             <TextBlock x:Name="ProcCount" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource TextDim}" FontSize="12"/>
                             <Separator Width="24"/>
+                            <Button x:Name="BtnProcSelectAll" Style="{StaticResource BtnPrimary}" Content="Selecionar tudo (selecionáveis)" Click="BtnProcSelectAll_Click" ToolTip="Marca todos os processos que você pode encerrar — os protegidos do sistema ficam de fora"/>
                             <Button x:Name="BtnProcKillSel" Style="{StaticResource BtnRed}" Content="Encerrar selecionados" Click="BtnProcKillSel_Click" ToolTip="Encerra processos selecionados (os protegidos ficam bloqueados)"/>
                             <Button x:Name="BtnProcRestartSel" Style="{StaticResource BtnPrimary}" Content="Reiniciar selecionados" Click="BtnProcRestartSel_Click"/>
                             <CheckBox x:Name="ChkAutoRefresh" Content="Atualização automática (2s)" VerticalAlignment="Center" Margin="12,0,0,0" IsChecked="True" Checked="AutoRefreshChanged" Unchecked="AutoRefreshChanged"/>
                             <Button x:Name="BtnProcRefresh" Style="{StaticResource BtnPrimary}" Content="Atualizar" Click="BtnProcRefresh_Click"/>
                         </WrapPanel>
                     </Border>
-                    <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
-                        <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="Ações" Width="150">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Content="Encerrar" Style="{StaticResource BtnRed}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="ProcRowKill_Click" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}"/>
-                                            <Button Content="Reiniciar" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="ProcRowRestart_Click"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Width="36">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="70" SortMemberPath="Pid"/>
-                            <DataGridTextColumn Header="Processo" Binding="{Binding Name}" Width="190" SortMemberPath="Name"/>
-                            <DataGridTextColumn Header="CPU" Binding="{Binding CpuText}" Width="70" SortMemberPath="P.CpuPercent"/>
-                            <DataGridTextColumn Header="Memória (MB)" Binding="{Binding MemMb}" Width="95" SortMemberPath="MemMb"/>
-                            <DataGridTextColumn Header="GPU" Binding="{Binding GpuText}" Width="65"/>
-                            <DataGridTextColumn Header="Leitura" Binding="{Binding ReadText}" Width="85"/>
-                            <DataGridTextColumn Header="Gravação" Binding="{Binding WriteText}" Width="90"/>
-                            <DataGridTextColumn Header="Caminho" Binding="{Binding Path}" Width="*"/>
-                            <DataGridTemplateColumn Header="Proteção" Width="140">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding ProtectionLabel}" Foreground="{Binding ProtectionColor}" FontWeight="SemiBold"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
+
+                    <Border DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="PROCESSOS DO SISTEMA — PROTEGIDOS (não podem ser encerrados)" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Red}" Margin="0,0,0,6"/>
+                            <DataGrid x:Name="GridProcSystem" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" MaxHeight="180">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Width="36">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="70" SortMemberPath="Pid"/>
+                                    <DataGridTextColumn Header="Processo" Binding="{Binding Name}" Width="190" SortMemberPath="Name"/>
+                                    <DataGridTextColumn Header="CPU" Binding="{Binding CpuText}" Width="70" SortMemberPath="P.CpuPercent"/>
+                                    <DataGridTextColumn Header="Memória (MB)" Binding="{Binding MemMb}" Width="95" SortMemberPath="MemMb"/>
+                                    <DataGridTextColumn Header="GPU" Binding="{Binding GpuText}" Width="65"/>
+                                    <DataGridTextColumn Header="Leitura" Binding="{Binding ReadText}" Width="85"/>
+                                    <DataGridTextColumn Header="Gravação" Binding="{Binding WriteText}" Width="90"/>
+                                    <DataGridTextColumn Header="Caminho" Binding="{Binding Path}" Width="*"/>
+                                    <DataGridTemplateColumn Header="Proteção" Width="140">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding ProtectionLabel}" Foreground="{Binding ProtectionColor}" FontWeight="SemiBold"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </Border>
+
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="SEUS PROCESSOS — você pode encerrar ou reiniciar" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,0,0,6"/>
+                        <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="Ações" Width="150">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Style="{StaticResource BtnRed}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="ProcRowKill_Click" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}" ToolTip="Encerrar processo">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                        <TextBlock Text="Encerrar" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="ProcRowRestart_Click" ToolTip="Reiniciar processo">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                        <TextBlock Text="Reiniciar" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="36">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="70" SortMemberPath="Pid"/>
+                                <DataGridTextColumn Header="Processo" Binding="{Binding Name}" Width="190" SortMemberPath="Name"/>
+                                <DataGridTextColumn Header="CPU" Binding="{Binding CpuText}" Width="70" SortMemberPath="P.CpuPercent"/>
+                                <DataGridTextColumn Header="Memória (MB)" Binding="{Binding MemMb}" Width="95" SortMemberPath="MemMb"/>
+                                <DataGridTextColumn Header="GPU" Binding="{Binding GpuText}" Width="65"/>
+                                <DataGridTextColumn Header="Leitura" Binding="{Binding ReadText}" Width="85"/>
+                                <DataGridTextColumn Header="Gravação" Binding="{Binding WriteText}" Width="90"/>
+                                <DataGridTextColumn Header="Caminho" Binding="{Binding Path}" Width="*"/>
+                                <DataGridTemplateColumn Header="Proteção" Width="140">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding ProtectionLabel}" Foreground="{Binding ProtectionColor}" FontWeight="SemiBold"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
                 </DockPanel>
             </TabItem>
 
@@ -148,34 +195,61 @@
                             <Button x:Name="BtnSvcRefresh" Style="{StaticResource BtnPrimary}" Content="Atualizar" Click="BtnSvcRefresh_Click"/>
                         </WrapPanel>
                     </Border>
-                    <DataGrid x:Name="GridServices" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
-                        <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="Ações" Width="160">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                            <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" IsEnabled="{Binding CanTouch}" Click="SvcRowToggle_Click" ToolTip="{Binding ToggleTip}"/>
-                                            <Button Content="Parar" Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Margin="6,0,0,0" Click="SvcRowStop_Click" ToolTip="Apenas parar agora (não altera a inicialização)"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Width="36">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding CanTouch}"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Serviço" Binding="{Binding Name}" SortMemberPath="Name" Width="150"/>
-                            <DataGridTextColumn Header="Nome de exibição" Binding="{Binding DisplayName}" SortMemberPath="DisplayName" Width="220"/>
-                            <DataGridTextColumn Header="Inicialização" Binding="{Binding KindStartLabel}" SortMemberPath="KindStartLabel" Width="110"/>
-                            <DataGridTextColumn Header="Estado" Binding="{Binding RunningState}" Width="100"/>
-                            <DataGridTextColumn Header="Classificação" Binding="{Binding RiskLabel}" SortMemberPath="RiskLabel" Width="150"/>
-                            <DataGridTextColumn Header="Categoria" Binding="{Binding Category}" Width="120"/>
-                            <DataGridTextColumn Header="Descrição / Motivo" Binding="{Binding Description}" Width="340"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <Border DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="SERVIÇOS DO SISTEMA — PROTEGIDOS (desativar pode causar BSOD)" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Red}" Margin="0,0,0,6"/>
+                            <DataGrid x:Name="GridSvcSystem" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" MaxHeight="180">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Width="36">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding CanTouch}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Serviço" Binding="{Binding Name}" SortMemberPath="Name" Width="150"/>
+                                    <DataGridTextColumn Header="Nome de exibição" Binding="{Binding DisplayName}" SortMemberPath="DisplayName" Width="220"/>
+                                    <DataGridTextColumn Header="Inicialização" Binding="{Binding KindStartLabel}" SortMemberPath="KindStartLabel" Width="110"/>
+                                    <DataGridTextColumn Header="Estado" Binding="{Binding RunningState}" Width="100"/>
+                                    <DataGridTextColumn Header="Classificação" Binding="{Binding RiskLabel}" SortMemberPath="RiskLabel" Width="150"/>
+                                    <DataGridTextColumn Header="Categoria" Binding="{Binding Category}" Width="120"/>
+                                    <DataGridTextColumn Header="Descrição / Motivo" Binding="{Binding Description}" Width="340"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </Border>
+
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="SERVIÇOS QUE VOCÊ PODE GERENCIAR" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,0,0,6"/>
+                        <DataGrid x:Name="GridServices" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="Ações" Width="160">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                                <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" IsEnabled="{Binding CanTouch}" Click="SvcRowToggle_Click" ToolTip="{Binding ToggleTip}"/>
+                                                <Button Content="Parar" Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Margin="6,0,0,0" Click="SvcRowStop_Click" ToolTip="Apenas parar agora (não altera a inicialização)"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="36">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding CanTouch}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Serviço" Binding="{Binding Name}" SortMemberPath="Name" Width="150"/>
+                                <DataGridTextColumn Header="Nome de exibição" Binding="{Binding DisplayName}" SortMemberPath="DisplayName" Width="220"/>
+                                <DataGridTextColumn Header="Inicialização" Binding="{Binding KindStartLabel}" SortMemberPath="KindStartLabel" Width="110"/>
+                                <DataGridTextColumn Header="Estado" Binding="{Binding RunningState}" Width="100"/>
+                                <DataGridTextColumn Header="Classificação" Binding="{Binding RiskLabel}" SortMemberPath="RiskLabel" Width="150"/>
+                                <DataGridTextColumn Header="Categoria" Binding="{Binding Category}" Width="120"/>
+                                <DataGridTextColumn Header="Descrição / Motivo" Binding="{Binding Description}" Width="340"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
                 </DockPanel>
             </TabItem>
 
@@ -217,64 +291,7 @@
                 </DockPanel>
             </TabItem>
 
-            <!-- ============ PERFIL ============ -->
-            <TabItem Header="Perfil">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,8,0,0">
-
-                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="PERFIL ATUAL: " FontSize="15" FontWeight="Bold" Foreground="{StaticResource Text}"/>
-                                    <TextBlock x:Name="TxtCurrentProfile" Text="—" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Accent}"/>
-                                </StackPanel>
-                                <TextBlock Text="O perfil Default contém as configurações salvas do usuário atual: estado de serviços, tarefas agendadas, inicialização e ajustes. Em breve será possível criar e alternar entre vários perfis." Margin="0,8,0,0" Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
-                                <WrapPanel Margin="0,12,0,0">
-                                    <Button x:Name="BtnSaveProfile" Style="{StaticResource BtnPrimary}" Content="Salvar estado atual no perfil" Click="BtnSaveProfile_Click"/>
-                                </WrapPanel>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
-                            <StackPanel>
-                                <TextBlock Text="SEGURANÇA TOTAL — NADA É EXCLUÍDO" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Green}"/>
-                                <TextBlock Text="Na PRIMEIRA abertura neste computador, o TothBoost cria OBRIGATORIAMENTE um ponto de restauração do Windows e, em seguida, grava o perfil inicial completo: o estado original de TODOS os serviços, tarefas agendadas, inicialização e ajustes — antes de você poder modificar qualquer coisa. Nada é excluído e tudo pode ser restaurado com 1 clique." Margin="0,8,0,0" Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
-                                <WrapPanel Margin="0,14,0,0">
-                                    <Button Content="Restaurar tudo (linha de base)" Style="{StaticResource BtnRed}" Click="BtnRestoreAll_Click" FontWeight="Bold"/>
-                                    <Button x:Name="BtnSnapshotNow" Style="{StaticResource BtnPrimary}" Content="Criar snapshot manual" Click="BtnSnapshotNow_Click"/>
-                                    <Button x:Name="BtnRefreshTweaks" Style="{StaticResource BtnPrimary}" Content="Atualizar estado" Click="BtnRefreshTweaks_Click"/>
-                                </WrapPanel>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
-                            <StackPanel>
-                                <TextBlock Text="PONTO DE RESTAURAÇÃO DO WINDOWS" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Accent}"/>
-                                <TextBlock x:Name="TxtRestorePointInfo" Text="Verificando..." Margin="0,8,0,0" Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
-                                <WrapPanel Margin="0,12,0,0">
-                                    <Button x:Name="BtnCreateRestorePoint" Style="{StaticResource BtnPrimary}" Content="Criar ponto de restauração agora" Click="BtnCreateRestorePoint_Click"/>
-                                </WrapPanel>
-                            </StackPanel>
-                        </Border>
-
-
-                        <Border Style="{StaticResource Card}">
-                            <StackPanel>
-                                <TextBlock Text="Como funciona" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
-                                <TextBlock Foreground="{StaticResource TextDim}" TextWrapping="Wrap" Margin="0,0,0,4">
-                                    <Run Text="1.) Na primeira abertura, o TothBoost cria OBRIGATORIAMENTE um ponto de restauração do Windows e grava o perfil inicial (todos os serviços/tarefas/inicializações) — isso nunca sobrescreve um perfil existente."/>
-                                    <LineBreak/>
-                                    <Run Text="2.) Serviços marcados como "/><Run Text="CRÍTICO" FontWeight="Bold" Foreground="{StaticResource Red}"/><Run Text=" (drivers do kernel e núcleo do Windows) não podem ser tocados — desativá-los causaria tela azul (BSOD)."/>
-                                    <LineBreak/>
-                                    <Run Text="3.) Para cada serviço/tarefa/inicialização você pode habilitar e desabilitar à vontade, individualmente ou em lote."/>
-                                    <LineBreak/>
-                                    <Run Text="4.) Um único clique restaura TODOS os serviços, tarefas, inicializações e ajustes para o estado original da primeira varredura."/>
-                                </TextBlock>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
+            <!-- ============ PERFIL (movido para depois de Ajustes) ============ -->
             <TabItem Header="Ajustes">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,8,0,0">
@@ -298,6 +315,166 @@
                                         <DataGridTextColumn Header="Estado" Binding="{Binding State}" Width="110"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============ PERFIL ============ -->
+            <TabItem Header="Perfil">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,8,0,0">
+
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <DockPanel>
+                                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                        <TextBlock Text="SEUS PERFIS" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+                                        <TextBlock Text="Perfil atual: " Margin="18,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource TextDim}"/>
+                                        <TextBlock x:Name="TxtCurrentProfile" Text="—" VerticalAlignment="Center" FontWeight="Bold" Foreground="{StaticResource Accent}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                                        <Button x:Name="BtnViewToggle" Style="{StaticResource BtnPrimary}" Content="Ver como lista" Click="BtnViewToggle_Click" ToolTip="Alterna entre exibição em cards e em lista"/>
+                                        <Button x:Name="BtnProfileCreate" Style="{StaticResource BtnAccent}" Content="Criar novo perfil" Click="BtnProfileCreate_Click" Margin="8,0,0,0"/>
+                                    </StackPanel>
+                                </DockPanel>
+                                <TextBlock Text="O Default é o save total: guarda o estado original da máquina (a referência). Para qualquer outra configuração, crie seus próprios perfis — você pode sobrescrever o perfil que escolher ou ir salvando em novos." Margin="0,8,0,0" Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
+
+                                <ItemsControl x:Name="ProfileCards" Margin="0,12,0,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{StaticResource Bg1}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,0,12,12" Width="296">
+                                                <StackPanel>
+                                                    <DockPanel>
+                                                        <Border DockPanel.Dock="Left" Background="#2E1065" CornerRadius="8" Width="36" Height="36">
+                                                            <TextBlock Text="&#xE80F;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Name}" FontSize="14.5" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+                                                            <TextBlock Text="{Binding KindLabel}" FontSize="11" Foreground="{StaticResource Accent}"/>
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                    <TextBlock Text="{Binding CreatedText}" Margin="0,8,0,0" FontSize="11.5" Foreground="{StaticResource TextDim}"/>
+                                                    <TextBlock Text="{Binding LastSavedText}" FontSize="11.5" Foreground="{StaticResource TextDim}"/>
+                                                    <TextBlock Text="EM USO AGORA" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Green}" Margin="0,6,0,0">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <WrapPanel Margin="0,10,0,0">
+                                                        <Button Content="Usar" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="10,4" Click="BtnProfileUse_Click"/>
+                                                        <Button Content="Salvar aqui" Style="{StaticResource BtnGreen}" FontSize="11" Padding="10,4" Margin="8,0,0,0" Click="BtnProfileSaveHere_Click"/>
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <DataGrid x:Name="GridProfiles" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" Visibility="Collapsed" MaxHeight="320">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Perfil" Binding="{Binding Name}" Width="180"/>
+                                        <DataGridTextColumn Header="Tipo" Binding="{Binding KindLabel}" Width="300"/>
+                                        <DataGridTextColumn Header="Host" Binding="{Binding HostName}" Width="120"/>
+                                        <DataGridTextColumn Header="Último salvamento" Binding="{Binding LastSavedText}" Width="180"/>
+                                        <DataGridTemplateColumn Header="Situação" Width="110">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="EM USO" FontWeight="Bold" Foreground="{StaticResource Green}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Ações" Width="220">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Button Content="Usar" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="10,4" Click="BtnProfileUse_Click"/>
+                                                        <Button Content="Salvar aqui" Style="{StaticResource BtnGreen}" FontSize="11" Padding="10,4" Margin="8,0,0,0" Click="BtnProfileSaveHere_Click"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <WrapPanel Margin="0,10,0,0">
+                                    <Button x:Name="BtnSaveProfile" Style="{StaticResource BtnGreen}" Content="Salvar estado atual no perfil selecionado" Click="BtnSaveProfile_Click" FontWeight="Bold"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="SEGURANÇA TOTAL — NADA É EXCLUÍDO" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Green}"/>
+                                <TextBlock Text="Na PRIMEIRA abertura neste computador, o TothBoost cria OBRIGATORIAMENTE um ponto de restauração do Windows e grava o perfil Default (save total): o estado original de TODOS os serviços, tarefas agendadas, inicialização e ajustes — antes de você poder modificar qualquer coisa. Nada é excluído e tudo pode ser restaurado com 1 clique." Margin="0,8,0,0" Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
+                                <WrapPanel Margin="0,14,0,0">
+                                    <Button Content="Restaurar tudo (linha de base)" Style="{StaticResource BtnRed}" Click="BtnRestoreAll_Click" FontWeight="Bold"/>
+                                    <Button x:Name="BtnRefreshTweaks" Style="{StaticResource BtnPrimary}" Content="Atualizar estado" Click="BtnRefreshTweaks_Click"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="PONTOS DE RESTAURAÇÃO DO WINDOWS" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Accent}"/>
+                                <TextBlock Text="Lista com data e hora exata de cada ponto. Excluir um ponto é POR CONTA E RISCO do usuário — o Windows pode recusar a exclusão do ponto mais recente." Margin="0,8,0,0" Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
+                                <DataGrid x:Name="GridRestorePoints" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" MaxHeight="260" Margin="0,10,0,0">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Ponto" Binding="{Binding Description}" Width="*"/>
+                                        <DataGridTextColumn Header="Data e hora" Binding="{Binding WhenText}" Width="180"/>
+                                        <DataGridTemplateColumn Header="Ações" Width="110">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="Excluir" Style="{StaticResource BtnRed}" FontSize="11" Padding="10,4" Click="BtnRestorePointDelete_Click" ToolTip="Exclui este ponto — por conta e risco do usuário"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <TextBlock x:Name="TxtRestorePointInfo" Text="" Margin="0,8,0,0" Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
+                                <WrapPanel Margin="0,10,0,0">
+                                    <Button x:Name="BtnCreateRestorePoint" Style="{StaticResource BtnPrimary}" Content="Criar ponto de restauração agora" Click="BtnCreateRestorePoint_Click"/>
+                                    <Button x:Name="BtnRefreshRestorePoints" Style="{StaticResource BtnPrimary}" Content="Atualizar lista" Click="BtnRefreshRestorePoints_Click" Margin="8,0,0,0"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Como funciona" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <TextBlock Foreground="{StaticResource TextDim}" TextWrapping="Wrap" Margin="0,0,0,4">
+                                    <Run Text="1.) Na primeira abertura, o TothBoost cria OBRIGATORIAMENTE um ponto de restauração do Windows e grava o perfil Default: save total do estado original (serviços, tarefas, inicialização e ajustes) — nunca sobrescreve perfis existentes."/>
+                                    <LineBreak/>
+                                    <Run Text="2.) Serviços marcados como "/><Run Text="CRÍTICO" FontWeight="Bold" Foreground="{StaticResource Red}"/><Run Text=" (drivers do kernel e núcleo do Windows) não podem ser tocados — desativá-los causaria tela azul (BSOD)."/>
+                                    <LineBreak/>
+                                    <Run Text="3.) Para cada serviço/tarefa/inicialização você pode habilitar e desabilitar à vontade, individualmente ou em lote. Qualquer estado pode virar um perfil: salve no perfil que quiser — recomendamos não mexer no Default, que é a referência original."/>
+                                    <LineBreak/>
+                                    <Run Text="4.) Um único clique restaura TODOS os serviços, tarefas, inicializações e ajustes para o estado original do Default (linha de base)."/>
+                                </TextBlock>
                             </StackPanel>
                         </Border>
                     </StackPanel>

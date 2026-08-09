@@ -85,6 +85,11 @@ namespace TothBoost.Core
 
         public void SaveProfileCapture()
         {
+            SaveProfileCaptureTo(null);
+        }
+
+        public void SaveProfileCaptureTo(string? profileName)
+        {
             var capture = new ProfileCapture
             {
                 Services = GetServices()
@@ -100,8 +105,22 @@ namespace TothBoost.Core
                     .Select(t => new ProfileTweakState { Id = t.Id, Applied = t.IsApplied })
                     .ToList()
             };
-            ProfileService.SaveCapture(ProfileService.CurrentName() ?? "Default", capture);
+            var target = profileName ?? ProfileService.CurrentName() ?? "Default";
+            ProfileService.SaveCapture(target, capture);
+            ProfileService.MarkSaved(target);
         }
+
+        public List<ProfileService.ProfileMeta> ListProfiles() => ProfileService.List();
+
+        public void CreateProfile(string name) => ProfileService.Create(name);
+
+        public void SelectProfile(string name) => ProfileService.Select(name);
+
+        // ---------- Pontos de restauração ----------
+
+        public List<RestorePointInfo> ListRestorePoints() => RestorePointService.ListPoints();
+
+        public (bool Ok, string Message) DeleteRestorePoint(long sequence) => RestorePointService.DeletePoint(sequence);
 
         public List<StartupItem> GetStartups() => new StartupScanner().ScanAll();
 

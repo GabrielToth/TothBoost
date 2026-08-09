@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using TothBoost.Core.Models;
 using TothBoost.Core.Utilities;
 
 namespace TothBoost.Core.Snapshot
@@ -76,5 +77,65 @@ namespace TothBoost.Core.Snapshot
         }
 
         private static string Description => "TothBoost - ponto de seguranca inicial";
+
+        /// <summary>Lista todos os pontos de restauração do Windows com data/hora exata.</summary>
+        public static List<RestorePointInfo> ListPoints()
+        {
+            var list = new List<RestorePointInfo>();
+            try
+            {
+                var ps = "$ErrorActionPreference='SilentlyContinue';" +
+                         "$pts = @(Get-WmiObject -Class SystemRestore | Sort-Object CreationTime);" +
+                         "$pts | ForEach-Object { Write-Output ('TB_PT|' + $_.SequenceNumber + '|' + $_.CreationTime.ToString('o') + '|' + $_.Description) }";
+                var (exit, output) = Proc.Run("powershell.exe",
+                    "-NoProfile -ExecutionPolicy Bypass -Command \"& { " + ps + " }\"", 60000);
+                if (exit != 0) return list;
+
+                foreach (var line in output.Split('\n'))
+                {
+                    var l = line.Trim();
+                    if (!l.StartsWith("TB_PT|")) continue;
+                    var parts = l.Split('|');
+                    if (parts.Length < 3) continue;
+                    if (long.TryParse(parts[1], out var seq) &&
+                        DateTime.TryParse(parts[2], null, System.Globalization.DateTimeStyles.RoundtripKind, out var when))
+                    {
+                        var descParts = parts.Skip(3).ToArray();
+                        list.Add(new RestorePointInfo
+                        {
+                            Sequence = seq,
+                            When = when,
+                            Description = descParts.Length > 0 && !string.IsNullOrWhiteSpace(descParts[0])
+                                ? string.Join("|", descParts) : null
+                        });
+                    }
+                }
+            }
+            catch { }
+            return list;
+        }
+
+        /// <summary>Exclui UM ponto de restauração específico via WMI. Por conta e risco do usuário.</summary>
+        public static (bool Ok, string Message) DeletePoint(long sequence)
+        {
+            try
+            {
+                var ps = "$ErrorActionPreference='Stop';" +
+                         "try { $cl = [wmiclass]'Root\\Default:SystemRestore'; $r = $cl.DeleteRestorePoint(" + sequence + "); 'TB_R:' + $r.ReturnValue }" +
+                         "catch { 'TB_FAIL:' + $_.Exception.Message }";
+                var (exit, output) = Proc.Run("powershell.exe",
+                    "-NoProfile -ExecutionPolicy Bypass -Command \"& { " + ps + " }\"", 60000);
+                if (exit != 0)
+                    return (false, "PowerShell falhou (código " + exit + "): " + output.Trim());
+                if (output.Contains("TB_R:0"))
+                    return (true, "Ponto de restauração excluído.");
+                var fail = output.Split('\n').FirstOrDefault(l => l.StartsWith("TB_FAIL:"))?.Trim();
+                return (false, fail ?? "A exclusão foi recusada pelo Windows.");
+            }
+            catch (Exception ex)
+            {
+                return (false, "Falha ao excluir: " + ex.Message);
+            }
+        }
     }
 }
