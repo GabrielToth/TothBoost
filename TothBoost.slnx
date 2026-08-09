@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TothBoost.App/TothBoost.App.csproj" />
+    <Project Path="src/TothBoost.Core/TothBoost.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TothBoost.Core.Tests/TothBoost.Core.Tests.csproj" />
+  </Folder>
+</Solution>
