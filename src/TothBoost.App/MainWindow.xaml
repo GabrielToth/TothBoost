@@ -40,55 +40,6 @@
         <TabControl x:Name="Tabs" Margin="12,10,12,6" SelectedIndex="0">
 
             <!-- ============ SERVIÇOS ============ -->
-            <TabItem Header="Serviços">
-                <DockPanel Margin="0,8,0,0">
-                    <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="12,10" Margin="0,0,0,8">
-                        <WrapPanel>
-                            <TextBox x:Name="SvcSearch" Width="260" TextChanged="SvcSearch_TextChanged" ToolTip="Buscar por nome"/>
-                            <ComboBox x:Name="SvcFilter" Width="230" SelectionChanged="SvcFilter_SelectionChanged" Margin="8,0,0,0"/>
-                            <TextBlock x:Name="SvcCount" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource TextDim}" FontSize="12"/>
-                            <Separator Width="24"/>
-                            <Button x:Name="BtnSvcDisableSel" Style="{StaticResource BtnGreen}" Content="Desabilitar selecionados" Click="BtnSvcDisableSel_Click"/>
-                            <Button x:Name="BtnSvcEnableSel" Style="{StaticResource BtnPrimary}" Content="Habilitar selecionados" Click="BtnSvcEnableSel_Click"/>
-                            <Button x:Name="BtnSvcStopSel" Style="{StaticResource BtnPrimary}" Content="Parar selecionados" Click="BtnSvcStopSel_Click"/>
-                            <Button x:Name="BtnSvcStartSel" Style="{StaticResource BtnPrimary}" Content="Iniciar selecionados" Click="BtnSvcStartSel_Click"/>
-                            <Button x:Name="BtnSvcGaming" Style="{StaticResource BtnAccent}" Content="Perfil de jogos (serviços recomendados)" Click="BtnSvcGaming_Click" FontWeight="SemiBold"/>
-                            <Button x:Name="BtnSvcRefresh" Style="{StaticResource BtnPrimary}" Content="Atualizar" Click="BtnSvcRefresh_Click"/>
-                        </WrapPanel>
-                    </Border>
-                    <DataGrid x:Name="GridServices" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
-                        <DataGrid.Columns>
-                            <DataGridTemplateColumn Width="36">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding CanTouch}"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Serviço" Binding="{Binding Name}" SortMemberPath="Name" Width="150"/>
-                            <DataGridTextColumn Header="Nome de exibição" Binding="{Binding DisplayName}" SortMemberPath="DisplayName" Width="220"/>
-                            <DataGridTextColumn Header="Inicialização" Binding="{Binding KindStartLabel}" SortMemberPath="KindStartLabel" Width="110"/>
-                            <DataGridTextColumn Header="Estado" Binding="{Binding RunningState}" Width="100"/>
-                            <DataGridTextColumn Header="Classificação" Binding="{Binding RiskLabel}" SortMemberPath="RiskLabel" Width="150"/>
-                            <DataGridTextColumn Header="Categoria" Binding="{Binding Category}" Width="120"/>
-                            <DataGridTextColumn Header="Descrição / Motivo" Binding="{Binding Description}" Width="340"/>
-                            <DataGridTemplateColumn Header="Ações" Width="200">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                            <Button Content="Des." Width="52" Style="{StaticResource BtnGreen}" IsEnabled="{Binding CanTouch}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="SvcRowDisable_Click" ToolTip="Desabilitar este serviço e pará-lo"/>
-                                            <Button Content="Hab." Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="SvcRowEnable_Click" ToolTip="Voltar a inicialização automática e iniciar"/>
-                                            <Button Content="P á rar" Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="SvcRowStop_Click" ToolTip="Apenas parar agora (não altera a inicialização)"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </DockPanel>
-            </TabItem>
-
-            <!-- ============ PROCESSOS ============ -->
             <TabItem Header="Processos">
                 <DockPanel Margin="0,8,0,0">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="10,10" Margin="0,0,0,10">
@@ -139,47 +90,6 @@
             </TabItem>
 
             <!-- ============ TAREFAS ============ -->
-            <TabItem Header="Tarefas agendadas">
-                <DockPanel Margin="0,8,0,0">
-                    <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="10,10" Margin="0,0,0,10">
-                        <WrapPanel>
-                            <TextBox x:Name="TaskSearch" Width="230" TextChanged="TaskSearch_TextChanged" ToolTip="Buscar"/>
-                            <TextBlock x:Name="TaskCount" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource TextDim}" FontSize="12"/>
-                            <Separator Margin="24"/>
-                            <Button x:Name="BtnTaskDisableSel" Style="{StaticResource BtnGreen}" Content="Desabilitar selecionadas" Click="BtnTaskDisableSel_Click"/>
-                            <Button x:Name="BtnTaskEnableSel" Style="{StaticResource BtnPrimary}" Content="Habilitar selecionadas" Click="BtnTaskEnableSel_Click"/>
-                            <Button x:Name="BtnTaskRefresh" Style="{StaticResource BtnPrimary}" Content="Atualizar" Click="BtnTaskRefresh_Click"/>
-                        </WrapPanel>
-                    </Border>
-                    <DataGrid x:Name="GridTasks" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
-                        <DataGrid.Columns>
-                            <DataGridTemplateColumn Width="36">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Tarefa" Binding="{Binding Name}" Width="260" SortMemberPath="Name"/>
-                            <DataGridTextColumn Header="Caminho completo" Binding="{Binding FullPath}" Width="430"/>
-                            <DataGridTextColumn Header="Estado" Binding="{Binding State}" Width="110"/>
-                            <DataGridTextColumn Header="Autor" Binding="{Binding Author}" Width="160"/>
-                            <DataGridTemplateColumn Header="Ações" Width="190">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Content="Desabilitar" Style="{StaticResource BtnGreen}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="TaskRowDisable_Click"/>
-                                            <Button Content="Habilitar" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="TaskRowEnable_Click"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </DockPanel>
-            </TabItem>
-
-            <!-- ============ INICIALIZAÇÃO ============ -->
             <TabItem Header="Inicialização">
                 <DockPanel Margin="0,8,0,0">
                     <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="10,10" Margin="0,0,0,10">
@@ -222,7 +132,97 @@
             </TabItem>
 
             <!-- ============ PERFIL & AJUSTES ============ -->
-            <TabItem Header="Perfil &amp; Ajustes">
+            <TabItem Header="Serviços">
+                <DockPanel Margin="0,8,0,0">
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="12,10" Margin="0,0,0,8">
+                        <WrapPanel>
+                            <TextBox x:Name="SvcSearch" Width="260" TextChanged="SvcSearch_TextChanged" ToolTip="Buscar por nome"/>
+                            <ComboBox x:Name="SvcFilter" Width="230" SelectionChanged="SvcFilter_SelectionChanged" Margin="8,0,0,0"/>
+                            <TextBlock x:Name="SvcCount" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource TextDim}" FontSize="12"/>
+                            <Separator Width="24"/>
+                            <Button x:Name="BtnSvcDisableSel" Style="{StaticResource BtnGreen}" Content="Desabilitar selecionados" Click="BtnSvcDisableSel_Click"/>
+                            <Button x:Name="BtnSvcEnableSel" Style="{StaticResource BtnPrimary}" Content="Habilitar selecionados" Click="BtnSvcEnableSel_Click"/>
+                            <Button x:Name="BtnSvcStopSel" Style="{StaticResource BtnPrimary}" Content="Parar selecionados" Click="BtnSvcStopSel_Click"/>
+                            <Button x:Name="BtnSvcStartSel" Style="{StaticResource BtnPrimary}" Content="Iniciar selecionados" Click="BtnSvcStartSel_Click"/>
+                            <Button x:Name="BtnSvcGaming" Style="{StaticResource BtnAccent}" Content="Perfil de jogos (serviços recomendados)" Click="BtnSvcGaming_Click" FontWeight="SemiBold"/>
+                            <Button x:Name="BtnSvcRefresh" Style="{StaticResource BtnPrimary}" Content="Atualizar" Click="BtnSvcRefresh_Click"/>
+                        </WrapPanel>
+                    </Border>
+                    <DataGrid x:Name="GridServices" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="36">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding CanTouch}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Serviço" Binding="{Binding Name}" SortMemberPath="Name" Width="150"/>
+                            <DataGridTextColumn Header="Nome de exibição" Binding="{Binding DisplayName}" SortMemberPath="DisplayName" Width="220"/>
+                            <DataGridTextColumn Header="Inicialização" Binding="{Binding KindStartLabel}" SortMemberPath="KindStartLabel" Width="110"/>
+                            <DataGridTextColumn Header="Estado" Binding="{Binding RunningState}" Width="100"/>
+                            <DataGridTextColumn Header="Classificação" Binding="{Binding RiskLabel}" SortMemberPath="RiskLabel" Width="150"/>
+                            <DataGridTextColumn Header="Categoria" Binding="{Binding Category}" Width="120"/>
+                            <DataGridTextColumn Header="Descrição / Motivo" Binding="{Binding Description}" Width="340"/>
+                            <DataGridTemplateColumn Header="Ações" Width="200">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                            <Button Content="Des." Width="52" Style="{StaticResource BtnGreen}" IsEnabled="{Binding CanTouch}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="SvcRowDisable_Click" ToolTip="Desabilitar este serviço e pará-lo"/>
+                                            <Button Content="Hab." Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="SvcRowEnable_Click" ToolTip="Voltar a inicialização automática e iniciar"/>
+                                            <Button Content="P á rar" Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="SvcRowStop_Click" ToolTip="Apenas parar agora (não altera a inicialização)"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ============ PROCESSOS ============ -->
+            <TabItem Header="Tarefas Agendadas">
+                <DockPanel Margin="0,8,0,0">
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="10,10" Margin="0,0,0,10">
+                        <WrapPanel>
+                            <TextBox x:Name="TaskSearch" Width="230" TextChanged="TaskSearch_TextChanged" ToolTip="Buscar"/>
+                            <TextBlock x:Name="TaskCount" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource TextDim}" FontSize="12"/>
+                            <Separator Margin="24"/>
+                            <Button x:Name="BtnTaskDisableSel" Style="{StaticResource BtnGreen}" Content="Desabilitar selecionadas" Click="BtnTaskDisableSel_Click"/>
+                            <Button x:Name="BtnTaskEnableSel" Style="{StaticResource BtnPrimary}" Content="Habilitar selecionadas" Click="BtnTaskEnableSel_Click"/>
+                            <Button x:Name="BtnTaskRefresh" Style="{StaticResource BtnPrimary}" Content="Atualizar" Click="BtnTaskRefresh_Click"/>
+                        </WrapPanel>
+                    </Border>
+                    <DataGrid x:Name="GridTasks" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="36">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Tarefa" Binding="{Binding Name}" Width="260" SortMemberPath="Name"/>
+                            <DataGridTextColumn Header="Caminho completo" Binding="{Binding FullPath}" Width="430"/>
+                            <DataGridTextColumn Header="Estado" Binding="{Binding State}" Width="110"/>
+                            <DataGridTextColumn Header="Autor" Binding="{Binding Author}" Width="160"/>
+                            <DataGridTemplateColumn Header="Ações" Width="190">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="Desabilitar" Style="{StaticResource BtnGreen}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="TaskRowDisable_Click"/>
+                                            <Button Content="Habilitar" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="TaskRowEnable_Click"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ============ INICIALIZAÇÃO ============ -->
+            <TabItem Header="Perfil">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,8,0,0">
 
@@ -248,10 +248,31 @@
                             </StackPanel>
                         </Border>
 
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Como funciona" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <TextBlock Foreground="{StaticResource TextDim}" TextWrapping="Wrap" Margin="0,0,0,4">
+                                    <Run Text="1.) Na primeira abertura, o TothBoost cria OBRIGATORIAMENTE um ponto de restauração do Windows e grava o perfil inicial (todos os serviços/tarefas/inicializações) — isso nunca sobrescreve um perfil existente."/>
+                                    <LineBreak/>
+                                    <Run Text="2.) Serviços marcados como "/><Run Text="CRÍTICO" FontWeight="Bold" Foreground="{StaticResource Red}"/><Run Text=" (drivers do kernel e núcleo do Windows) não podem ser tocados — desativá-los causaria tela azul (BSOD)."/>
+                                    <LineBreak/>
+                                    <Run Text="3.) Para cada serviço/tarefa/inicialização você pode habilitar e desabilitar à vontade, individualmente ou em lote."/>
+                                    <LineBreak/>
+                                    <Run Text="4.) Um único clique restaura TODOS os serviços, tarefas, inicializações e ajustes para o estado original da primeira varredura."/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Ajustes">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,8,0,0">
                         <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="Ajustes raros (todos reversíveis)" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
-                                <DataGrid x:Name="GridTweaks" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" MaxHeight="260">
+                                <DataGrid x:Name="GridTweaks" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" MaxHeight="620">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Ajuste" Binding="{Binding Name}" Width="260"/>
                                         <DataGridTextColumn Header="Descrição" Binding="{Binding Description}" Width="470"/>
@@ -270,22 +291,6 @@
                                 </DataGrid>
                             </StackPanel>
                         </Border>
-
-                        <Border Style="{StaticResource Card}">
-                            <StackPanel>
-                                <TextBlock Text="Como funciona" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
-                                <TextBlock Foreground="{StaticResource TextDim}" TextWrapping="Wrap" Margin="0,0,0,4">
-                                    <Run Text="1.) Na primeira abertura, o TothBoost cria OBRIGATORIAMENTE um ponto de restauração do Windows e grava o perfil inicial (todos os serviços/tarefas/inicializações) — isso nunca sobrescreve um perfil existente."/>
-                                    <LineBreak/>
-                                    <Run Text="2.) Serviços marcados como "/><Run Text="CRÍTICO" FontWeight="Bold" Foreground="{StaticResource Red}"/><Run Text=" (drivers do kernel e núcleo do Windows) não podem ser tocados — desativá-los causaria tela azul (BSOD)."/>
-                                    <LineBreak/>
-                                    <Run Text="3.) Para cada serviço/tarefa/inicialização você pode habilitar e desabilitar à vontade, individualmente ou em lote."/>
-                                    <LineBreak/>
-                                    <Run Text="4.) Um único clique restaura TODOS os serviços, tarefas, inicializações e ajustes para o estado original da primeira varredura."/>
-                                </TextBlock>
-                            </StackPanel>
-                        </Border>
-
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
