@@ -55,6 +55,16 @@
                     </Border>
                     <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
                         <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="Ações" Width="150">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="Encerrar" Style="{StaticResource BtnRed}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="ProcRowKill_Click" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}"/>
+                                            <Button Content="Reiniciar" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="ProcRowRestart_Click"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTemplateColumn Width="36">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -74,16 +84,6 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding ProtectionLabel}" Foreground="{Binding ProtectionColor}" FontWeight="SemiBold"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Ações" Width="140">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Content="Encerrar" Style="{StaticResource BtnRed}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="ProcRowKill_Click" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}"/>
-                                            <Button Content="Reiniciar" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="ProcRowRestart_Click"/>
-                                        </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -107,6 +107,13 @@
                     </Border>
                     <DataGrid x:Name="GridStartup" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
                         <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="Ações" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" Click="StartupRowToggle_Click" ToolTip="{Binding State}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTemplateColumn Width="36">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -118,13 +125,6 @@
                             <DataGridTextColumn Header="Local" Binding="{Binding Location}" Width="260"/>
                             <DataGridTextColumn Header="Comando" Binding="{Binding Command}" Width="520"/>
                             <DataGridTextColumn Header="Estado" Binding="{Binding State}" Width="170"/>
-                            <DataGridTemplateColumn Header="Ações" Width="100">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" Click="StartupRowToggle_Click" ToolTip="{Binding State}"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                     <TextBlock DockPanel.Dock="Bottom" Text="Nada é excluído: desabilitar move o valor/atalho para a pasta de segurança do TothBoost; habilitar devolve tudo ao lugar original." FontSize="11" Foreground="{StaticResource TextDim}" Margin="2,8,2,0" TextWrapping="Wrap"/>
@@ -150,6 +150,16 @@
                     </Border>
                     <DataGrid x:Name="GridServices" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
                         <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="Ações" Width="160">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                            <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" IsEnabled="{Binding CanTouch}" Click="SvcRowToggle_Click" ToolTip="{Binding ToggleTip}"/>
+                                            <Button Content="Parar" Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Margin="6,0,0,0" Click="SvcRowStop_Click" ToolTip="Apenas parar agora (não altera a inicialização)"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTemplateColumn Width="36">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -164,16 +174,6 @@
                             <DataGridTextColumn Header="Classificação" Binding="{Binding RiskLabel}" SortMemberPath="RiskLabel" Width="150"/>
                             <DataGridTextColumn Header="Categoria" Binding="{Binding Category}" Width="120"/>
                             <DataGridTextColumn Header="Descrição / Motivo" Binding="{Binding Description}" Width="340"/>
-                            <DataGridTemplateColumn Header="Ações" Width="150">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                            <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" IsEnabled="{Binding CanTouch}" Click="SvcRowToggle_Click" ToolTip="{Binding ToggleTip}"/>
-                                            <Button Content="Parar" Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Margin="6,0,0,0" Click="SvcRowStop_Click" ToolTip="Apenas parar agora (não altera a inicialização)"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>
@@ -194,6 +194,13 @@
                     </Border>
                     <DataGrid x:Name="GridTasks" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
                         <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="Ações" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" Click="TaskRowToggle_Click" ToolTip="{Binding State}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTemplateColumn Width="36">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -205,13 +212,6 @@
                             <DataGridTextColumn Header="Caminho completo" Binding="{Binding FullPath}" Width="430"/>
                             <DataGridTextColumn Header="Estado" Binding="{Binding State}" Width="110"/>
                             <DataGridTextColumn Header="Autor" Binding="{Binding Author}" Width="160"/>
-                            <DataGridTemplateColumn Header="Ações" Width="100">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" Click="TaskRowToggle_Click" ToolTip="{Binding State}"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>
@@ -283,10 +283,7 @@
                                 <TextBlock Text="Ajustes raros (todos reversíveis)" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
                                 <DataGrid x:Name="GridTweaks" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" MaxHeight="620">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Ajuste" Binding="{Binding Name}" Width="260"/>
-                                        <DataGridTextColumn Header="Descrição" Binding="{Binding Description}" Width="470"/>
-                                        <DataGridTextColumn Header="Estado" Binding="{Binding State}" Width="110"/>
-                                        <DataGridTemplateColumn Header="Ações" Width="180">
+                                        <DataGridTemplateColumn Header="Ações" Width="160">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Orientation="Horizontal">
@@ -296,6 +293,9 @@
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Ajuste" Binding="{Binding Name}" Width="260"/>
+                                        <DataGridTextColumn Header="Descrição" Binding="{Binding Description}" Width="470"/>
+                                        <DataGridTextColumn Header="Estado" Binding="{Binding State}" Width="110"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </StackPanel>

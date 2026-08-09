@@ -25,27 +25,40 @@ namespace TothBoost.Core.Scanners
                     var root = doc.Root;
                     if (root is null) continue;
 
-                    var uri = (string?)root.Element("RegistrationInfo")?.Element("URI")
-                              ?? (string?)root.Element("RegistrationInfo")?.Element("Uri");
-                    var author = (string?)root.Element("RegistrationInfo")?.Element("Author");
-                    var logon = (string?)root.Element("Principal")?.Element("LogonType");
-                    var enabled = (bool?)root.Element("Settings")?.Element("Enabled") ?? true;
+                    var items = root.Name.LocalName == "Task"
+                        ? new[] { root }
+                        : root.Elements().Where(e => e.Name.LocalName == "Task");
 
-                    var path = uri ?? "\\Desconhecido";
-                    var name = path.Split('\\').Last();
-
-                    tasks.Add(new ScheduledTaskInfo
+                    foreach (var taskEl in items)
                     {
-                        FullPath = path,
-                        Name = string.IsNullOrEmpty(name) ? path : name,
-                        Enabled = enabled,
-                        Author = string.IsNullOrEmpty(author) ? null : author,
-                        LogonDescription = logon
-                    });
+                        var reg = Child(taskEl, "RegistrationInfo");
+                        var uri = (string?)Child(reg, "URI");
+                        if (string.IsNullOrEmpty(uri)) uri = (string?)Child(reg, "Uri");
+                        var author = (string?)Child(reg, "Author");
+                        var logon = (string?)Child(Child(taskEl, "Principal"), "LogonType");
+                        var enabled = (bool?)Child(Child(taskEl, "Settings"), "Enabled") ?? true;
+
+                        var path = string.IsNullOrEmpty(uri) ? "\\Desconhecido" : uri;
+                        var name = path.Split('\\').Last();
+
+                        tasks.Add(new ScheduledTaskInfo
+                        {
+                            FullPath = path,
+                            Name = string.IsNullOrEmpty(name) ? path : name,
+                            Enabled = enabled,
+                            Author = string.IsNullOrEmpty(author) ? null : author,
+                            LogonDescription = logon
+                        });
+                    }
                 }
                 catch { /* bloco XML corrompido — ignorar */ }
             }
             return tasks.OrderBy(t => t.FullPath).ToList();
+        }
+
+        private static XElement? Child(XElement? parent, string localName)
+        {
+            return parent?.Elements().FirstOrDefault(e => e.Name.LocalName == localName);
         }
 
         private static List<string> ParseXml(string raw)
