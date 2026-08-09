@@ -55,10 +55,59 @@
                         </WrapPanel>
                     </Border>
 
-                    <Border DockPanel.Dock="Bottom" Margin="0,10,0,0">
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="PROCESSOS DO SISTEMA — PROTEGIDOS (não podem ser encerrados)" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Red}" Margin="0,0,0,6"/>
-                            <DataGrid x:Name="GridProcSystem" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" MaxHeight="180">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Text="SEUS PROCESSOS — você pode encerrar ou reiniciar" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,0,0,6"/>
+                            <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="Ações" Width="150">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Style="{StaticResource BtnRed}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="ProcRowKill_Click" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}" ToolTip="Encerrar processo">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                            <TextBlock Text="Encerrar" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="ProcRowRestart_Click" ToolTip="Reiniciar processo">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                            <TextBlock Text="Reiniciar" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Button>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Width="36">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="70" SortMemberPath="Pid"/>
+                                    <DataGridTextColumn Header="Processo" Binding="{Binding Name}" Width="190" SortMemberPath="Name"/>
+                                    <DataGridTextColumn Header="CPU" Binding="{Binding CpuText}" Width="70" SortMemberPath="P.CpuPercent"/>
+                                    <DataGridTextColumn Header="Memória (MB)" Binding="{Binding MemMb}" Width="95" SortMemberPath="MemMb"/>
+                                    <DataGridTextColumn Header="GPU" Binding="{Binding GpuText}" Width="65"/>
+                                    <DataGridTextColumn Header="Leitura" Binding="{Binding ReadText}" Width="85"/>
+                                    <DataGridTextColumn Header="Gravação" Binding="{Binding WriteText}" Width="90"/>
+                                    <DataGridTextColumn Header="Caminho" Binding="{Binding Path}" Width="*"/>
+                                    <DataGridTemplateColumn Header="Proteção" Width="140">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding ProtectionLabel}" Foreground="{Binding ProtectionColor}" FontWeight="SemiBold"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <Border Background="{StaticResource Bg1}" CornerRadius="8" Padding="10,8" Margin="0,20,0,6">
+                                <TextBlock Text="PROCESSOS DO SISTEMA — PROTEGIDOS (não podem ser encerrados)" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Red}"/>
+                            </Border>
+                            <DataGrid x:Name="GridProcSystem" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
                                 <DataGrid.Columns>
                                     <DataGridTemplateColumn Width="36">
                                         <DataGridTemplateColumn.CellTemplate>
@@ -84,58 +133,8 @@
                                     </DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
-                        </DockPanel>
-                    </Border>
-
-                    <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="SEUS PROCESSOS — você pode encerrar ou reiniciar" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,0,0,6"/>
-                        <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
-                            <DataGrid.Columns>
-                                <DataGridTemplateColumn Header="Ações" Width="150">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Button Style="{StaticResource BtnRed}" FontSize="11" Padding="6,3" Margin="0,0,4,0" Click="ProcRowKill_Click" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}" ToolTip="Encerrar processo">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="Encerrar" VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Click="ProcRowRestart_Click" ToolTip="Reiniciar processo">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="Reiniciar" VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                </Button>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                                <DataGridTemplateColumn Width="36">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}"/>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="70" SortMemberPath="Pid"/>
-                                <DataGridTextColumn Header="Processo" Binding="{Binding Name}" Width="190" SortMemberPath="Name"/>
-                                <DataGridTextColumn Header="CPU" Binding="{Binding CpuText}" Width="70" SortMemberPath="P.CpuPercent"/>
-                                <DataGridTextColumn Header="Memória (MB)" Binding="{Binding MemMb}" Width="95" SortMemberPath="MemMb"/>
-                                <DataGridTextColumn Header="GPU" Binding="{Binding GpuText}" Width="65"/>
-                                <DataGridTextColumn Header="Leitura" Binding="{Binding ReadText}" Width="85"/>
-                                <DataGridTextColumn Header="Gravação" Binding="{Binding WriteText}" Width="90"/>
-                                <DataGridTextColumn Header="Caminho" Binding="{Binding Path}" Width="*"/>
-                                <DataGridTemplateColumn Header="Proteção" Width="140">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding ProtectionLabel}" Foreground="{Binding ProtectionColor}" FontWeight="SemiBold"/>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </DockPanel>
+                        </StackPanel>
+                    </ScrollViewer>
                 </DockPanel>
             </TabItem>
 
@@ -195,10 +194,41 @@
                             <Button x:Name="BtnSvcRefresh" Style="{StaticResource BtnPrimary}" Content="Atualizar" Click="BtnSvcRefresh_Click"/>
                         </WrapPanel>
                     </Border>
-                    <Border DockPanel.Dock="Bottom" Margin="0,10,0,0">
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="SERVIÇOS DO SISTEMA — PROTEGIDOS (desativar pode causar BSOD)" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Red}" Margin="0,0,0,6"/>
-                            <DataGrid x:Name="GridSvcSystem" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" MaxHeight="180">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Text="SERVIÇOS QUE VOCÊ PODE GERENCIAR" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,0,0,6"/>
+                            <DataGrid x:Name="GridServices" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="Ações" Width="160">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                                    <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" IsEnabled="{Binding CanTouch}" Click="SvcRowToggle_Click" ToolTip="{Binding ToggleTip}"/>
+                                                    <Button Content="Parar" Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Margin="6,0,0,0" Click="SvcRowStop_Click" ToolTip="Apenas parar agora (não altera a inicialização)"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Width="36">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding CanTouch}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Serviço" Binding="{Binding Name}" SortMemberPath="Name" Width="150"/>
+                                    <DataGridTextColumn Header="Nome de exibição" Binding="{Binding DisplayName}" SortMemberPath="DisplayName" Width="220"/>
+                                    <DataGridTextColumn Header="Inicialização" Binding="{Binding KindStartLabel}" SortMemberPath="KindStartLabel" Width="110"/>
+                                    <DataGridTextColumn Header="Estado" Binding="{Binding RunningState}" Width="100"/>
+                                    <DataGridTextColumn Header="Classificação" Binding="{Binding RiskLabel}" SortMemberPath="RiskLabel" Width="150"/>
+                                    <DataGridTextColumn Header="Categoria" Binding="{Binding Category}" Width="120"/>
+                                    <DataGridTextColumn Header="Descrição / Motivo" Binding="{Binding Description}" Width="340"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <Border Background="{StaticResource Bg1}" CornerRadius="8" Padding="10,8" Margin="0,20,0,6">
+                                <TextBlock Text="SERVIÇOS DO SISTEMA — PROTEGIDOS (desativar pode causar BSOD)" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Red}"/>
+                            </Border>
+                            <DataGrid x:Name="GridSvcSystem" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
                                 <DataGrid.Columns>
                                     <DataGridTemplateColumn Width="36">
                                         <DataGridTemplateColumn.CellTemplate>
@@ -216,40 +246,8 @@
                                     <DataGridTextColumn Header="Descrição / Motivo" Binding="{Binding Description}" Width="340"/>
                                 </DataGrid.Columns>
                             </DataGrid>
-                        </DockPanel>
-                    </Border>
-
-                    <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="SERVIÇOS QUE VOCÊ PODE GERENCIAR" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,0,0,6"/>
-                        <DataGrid x:Name="GridServices" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
-                            <DataGrid.Columns>
-                                <DataGridTemplateColumn Header="Ações" Width="160">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                                <ToggleButton Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsOn, Mode=OneWay}" IsEnabled="{Binding CanTouch}" Click="SvcRowToggle_Click" ToolTip="{Binding ToggleTip}"/>
-                                                <Button Content="Parar" Width="52" Style="{StaticResource BtnPrimary}" FontSize="11" Padding="6,3" Margin="6,0,0,0" Click="SvcRowStop_Click" ToolTip="Apenas parar agora (não altera a inicialização)"/>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                                <DataGridTemplateColumn Width="36">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding CanTouch}"/>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Serviço" Binding="{Binding Name}" SortMemberPath="Name" Width="150"/>
-                                <DataGridTextColumn Header="Nome de exibição" Binding="{Binding DisplayName}" SortMemberPath="DisplayName" Width="220"/>
-                                <DataGridTextColumn Header="Inicialização" Binding="{Binding KindStartLabel}" SortMemberPath="KindStartLabel" Width="110"/>
-                                <DataGridTextColumn Header="Estado" Binding="{Binding RunningState}" Width="100"/>
-                                <DataGridTextColumn Header="Classificação" Binding="{Binding RiskLabel}" SortMemberPath="RiskLabel" Width="150"/>
-                                <DataGridTextColumn Header="Categoria" Binding="{Binding Category}" Width="120"/>
-                                <DataGridTextColumn Header="Descrição / Motivo" Binding="{Binding Description}" Width="340"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </DockPanel>
+                        </StackPanel>
+                    </ScrollViewer>
                 </DockPanel>
             </TabItem>
 
