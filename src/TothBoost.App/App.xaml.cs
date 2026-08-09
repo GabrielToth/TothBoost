@@ -73,7 +73,10 @@ namespace TothBoost.App
                                 enc.Save(fs);
                             }
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            File.AppendAllText(Path.Combine(Path.GetTempPath(), "tothboost-shot-error.log"), ex.ToString() + Environment.NewLine);
+                        }
                         Shutdown();
                     });
             }

@@ -8,16 +8,38 @@
         <TextBlock x:Name="SummaryText" DockPanel.Dock="Top" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Text}" Margin="0,0,0,10"/>
         <Button x:Name="BtnClose" DockPanel.Dock="Bottom" Content="Fechar" Style="{StaticResource BtnPrimary}" Width="120" HorizontalAlignment="Right" Margin="0,12,0,0" Click="BtnClose_Click"/>
         <ListView x:Name="ListReport" Background="{StaticResource Bg1}" BorderBrush="{StaticResource Border}" BorderThickness="1" FontSize="12">
-            <ListView.ItemTemplate>
-                <DataTemplate>
-                    <StackPanel Orientation="Horizontal" Margin="4,2">
-                        <TextBlock Text="{Binding Icon}" Width="18" FontWeight="Bold"/>
-                        <TextBlock Text="{Binding Item}" Width="160" Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding Action}" Width="190" Foreground="{StaticResource TextDim}" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding Detail}" Foreground="{StaticResource TextDim}" TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
-                </DataTemplate>
-            </ListView.ItemTemplate>
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="" Width="44">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Icon}" FontWeight="Bold" Foreground="{StaticResource Text}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Serviço" Width="280">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Item}" Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Ação" Width="230">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Action}" Foreground="{StaticResource TextDim}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Detalhe" Width="400">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Detail}" Foreground="{StaticResource TextDim}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                </GridView>
+            </ListView.View>
         </ListView>
     </DockPanel>
     </Border>

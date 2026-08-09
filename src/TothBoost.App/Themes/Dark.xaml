@@ -286,6 +286,8 @@
         <Setter Property="SelectionUnit" Value="FullRow"/>
         <Setter Property="RowHeight" Value="34"/>
         <Setter Property="CanUserResizeRows" Value="False"/>
+        <Setter Property="CanUserResizeColumns" Value="True"/>
+        <Setter Property="CanUserReorderColumns" Value="True"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="RowHeaderWidth" Value="0"/>
         <Setter Property="ColumnHeaderHeight" Value="30"/>
@@ -299,6 +301,8 @@
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
     </Style>
 
+    <!-- Cabecalho com template PADRAO (mantem os grips de redimensionamento).
+         Cores escura via TemplateBinding no estilo. -->
     <Style TargetType="DataGridColumnHeader">
         <Setter Property="Background" Value="#131A24"/>
         <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
@@ -306,16 +310,30 @@
         <Setter Property="BorderThickness" Value="0,0,1,1"/>
         <Setter Property="Padding" Value="6,6"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="DataGridColumnHeader">
-                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
-                        <ContentPresenter VerticalAlignment="Center" TextElement.Foreground="{StaticResource TextSub}"/>
-                    </Border>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="MinWidth" Value="24"/>
+    </Style>
+
+    <!-- Cabecalho de coluna do GridView (ListView em modo de detalhe) -->
+    <Style TargetType="GridViewColumnHeader">
+        <Setter Property="Background" Value="#131A24"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSub}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        <Setter Property="Padding" Value="8,6"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <Style TargetType="ListViewItem">
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{StaticResource AccentSoft}"/>
+                <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="DataGridRow">
