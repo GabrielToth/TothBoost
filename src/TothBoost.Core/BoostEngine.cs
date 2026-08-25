@@ -2,13 +2,14 @@ using TothBoost.Core.Known;
 using TothBoost.Core.Models;
 using TothBoost.Core.Scanners;
 using TothBoost.Core.Snapshot;
+using TothBoost.Core.Utilities;
 
 namespace TothBoost.Core
 {
     /// <summary>
-    /// Camada de orquestração: prepara o snapshot inicial, classifica serviços,
-    /// aplica ações e restaura o sistema. Garante que nenhuma modificação
-    /// aconteça antes do snapshot de linha de base existir.
+    /// Core orchestration engine: manages baseline snapshot, service classification,
+    /// action execution, and system restoration. Ensures no modification occurs
+    /// before safety baseline exists.
     /// </summary>
     public sealed class BoostEngine
     {
@@ -17,18 +18,15 @@ namespace TothBoost.Core
 
         public bool BaselineExists => SnapshotService.BaselineExists;
 
-        /// <summary>Verdadeiro se o primeiro uso (ponto de restauração + perfil inicial) já foi concluído.</summary>
+        /// <summary>True if first-run initialization (restore point + default profile) is complete.</summary>
         public bool IsInitialized => RestorePointService.IsInitialized;
 
         /// <summary>
-        /// Rotina OBRIGATÓRIA de primeiro uso, na ordem de segurança:
-        /// 1) cria o ponto de restauração do Windows;
-        /// 2) faz a primeira varredura completa;
-        /// 3) grava o perfil inicial com o estado ORIGINAL de TODOS os
-        ///    serviços, tarefas agendadas, inicialização e ajustes;
-        /// 4) marca a máquina como inicializada — só depois disso o
-        ///    usuário pode modificar qualquer coisa.
-        /// Retorna (pontoOk, mensagem).
+        /// First-run setup routine:
+        /// 1) Creates Windows System Restore Point;
+        /// 2) Performs initial full scan;
+        /// 3) Saves initial profile with ORIGINAL state of ALL services, tasks, startup, and tweaks;
+        /// 4) Marks computer as initialized.
         /// </summary>
         public (bool RestorePointOk, string Message) InitialSetup()
         {
@@ -38,65 +36,33 @@ namespace TothBoost.Core
                 try { RestorePointService.MarkInitialized(); } catch { }
             }
 
-            // A linha de base agora é criada SÓ depois do ponto de restauração,
-            // e nunca sobrescreve um perfil já existente.
             EnsureBaseline();
             return (rpOk, rpMsg);
         }
 
-        /// <summary>
-        /// Cria a linha de base (estado original) automaticamente na primeira
-        /// execução — idempotente e nunca sobrescreve um snapshot existente.
-        /// </summary>
         public void EnsureBaseline()
         {
             if (SnapshotService.BaselineExists) return;
             var services = GetServices();
             var tasks = GetTasks();
-            var startups = new StartupScanner().ScanAll();
+            var startups = GetStartups();
             SnapshotService.EnsureBaseline(services, tasks, startups);
+            SaveCapture("Default");
         }
-
-        /// <summary>Cria um ponto de restauração manual a qualquer momento.</summary>
-        public (bool Ok, string Message) CreateRestorePointNow() => RestorePointService.CreateInitialPoint();
-
-        public List<ServiceInfo> GetServices()
-        {
-            var raw = _svcScanner.ScanAll();
-            foreach (var s in raw) KnowledgeBase.Classify(s);
-            return raw;
-        }
-
-        public List<ProcessInfo> GetProcesses() => new ProcessScanner().ScanAll();
-
-        public List<ScheduledTaskInfo> GetTasks() => _taskScanner.ScanAll();
-
-        // ---------- perfis ----------
 
         public string CurrentProfileName => ProfileService.CurrentName() ?? "Default";
 
-        /// <summary>Garante o perfil Default com as configurações salvas do usuário atual.</summary>
-        public void EnsureDefaultProfile()
-        {
-            ProfileService.EnsureDefault();
-            var name = ProfileService.CurrentName() ?? "Default";
-            if (!ProfileService.CaptureExists(name)) SaveProfileCapture();
-        }
-
-        public void SaveProfileCapture()
-        {
-            SaveProfileCaptureTo(null);
-        }
-
-        public void SaveProfileCaptureTo(string? profileName)
+        public void SaveCapture(string? profileName = null)
         {
             var capture = new ProfileCapture
             {
+                Name = profileName ?? CurrentProfileName,
+                CapturedAt = DateTime.Now,
                 Services = GetServices()
-                    .Select(s => new ProfileServiceState { Name = s.Name, StartKind = (int)s.StartKind, Protected = s.IsProtected })
+                    .Select(s => new ProfileServiceState { Name = s.Name, StartKind = (int)s.StartKind, Running = s.RunningState == "Running" })
                     .ToList(),
                 Tasks = GetTasks()
-                    .Select(t => new ProfileTaskState { FullPath = t.FullPath, Name = t.Name, Enabled = t.Enabled })
+                    .Select(t => new ProfileTaskState { FullPath = t.FullPath, Enabled = t.Enabled })
                     .ToList(),
                 Startups = GetStartups()
                     .Select(i => new ProfileStartupState { Name = i.Name, Location = i.Location, Exists = i.Existing, DisabledByTothBoost = i.DisabledByTothBoost })
@@ -117,7 +83,7 @@ namespace TothBoost.Core
         public void SelectProfile(string name) => ProfileService.Select(name);
 
         /// <summary>
-        /// Aplica todas as configurações gravadas em um perfil (serviços, tarefas, inicialização e ajustes).
+        /// Applies all configurations saved in a profile (services, tasks, startup, tweaks).
         /// </summary>
         public ActionReport ApplyProfile(string profileName)
         {
@@ -126,11 +92,11 @@ namespace TothBoost.Core
             var capture = ProfileService.LoadCapture(profileName);
             if (capture is null)
             {
-                report.Add(profileName, "carregar perfil", false, "Perfil não encontrado ou sem dados salvos.");
+                report.Add(profileName, "load profile", false, "Profile not found or contains no saved data.");
                 return report;
             }
 
-            // 1. Serviços
+            // 1. Services
             var currentServices = GetServices();
             foreach (var sState in capture.Services)
             {
@@ -140,102 +106,65 @@ namespace TothBoost.Core
                 var targetStart = (ServiceStartKind)sState.StartKind;
                 if (targetStart == ServiceStartKind.Disabled)
                 {
-                    if (current.StartKind != ServiceStartKind.Disabled || current.RunningState == "Executando")
+                    if (current.StartKind != ServiceStartKind.Disabled || current.RunningState == "Running")
                     {
-                        try
-                        {
-                            ServiceActions.ChangeStartKind(current.Name, ServiceStartKind.Disabled);
-                            report.Add(current.Name, "perfil → desabilitado", true);
-                            if (current.RunningState == "Executando")
-                            {
-                                try { ServiceActions.Stop(current.Name); report.Add(current.Name, "parado", true); }
-                                catch (Exception ex) { report.AddError(current.Name, "parar", ex); }
-                            }
-                        }
-                        catch (Exception ex) { report.AddError(current.Name, "perfil serviços", ex); }
+                        var res = DisableServices(new[] { current.Name }, currentServices);
+                        report.Merge(res);
                     }
                 }
                 else
                 {
                     if (current.StartKind != targetStart)
                     {
-                        try
-                        {
-                            ServiceActions.ChangeStartKind(current.Name, targetStart);
-                            report.Add(current.Name, $"perfil → {targetStart}", true);
-                        }
-                        catch (Exception ex) { report.AddError(current.Name, "perfil serviços", ex); }
+                        var res = EnableServices(new[] { current.Name }, targetStart, currentServices);
+                        report.Merge(res);
                     }
                 }
             }
 
-            // 2. Tarefas Agendadas
+            // 2. Scheduled Tasks
             var currentTasks = GetTasks();
             foreach (var tState in capture.Tasks)
             {
                 var current = currentTasks.FirstOrDefault(x => x.FullPath.Equals(tState.FullPath, StringComparison.OrdinalIgnoreCase));
-                if (current is null) continue;
-                if (current.Enabled != tState.Enabled)
+                if (current is null || current.Enabled == tState.Enabled) continue;
+                try
                 {
-                    try
-                    {
-                        TaskActions.SetEnabled(current.FullPath, tState.Enabled);
-                        report.Add(current.Name, tState.Enabled ? "perfil → habilitar tarefa" : "perfil → desabilitar tarefa", true);
-                    }
-                    catch (Exception ex) { report.AddError(current.Name, "perfil tarefas", ex); }
+                    TaskScanner.SetEnabled(tState.FullPath, tState.Enabled);
+                    report.Add(tState.FullPath, tState.Enabled ? "enabled" : "disabled", true);
+                }
+                catch (Exception ex)
+                {
+                    report.AddError(tState.FullPath, "apply task profile", ex);
                 }
             }
 
-            // 3. Inicialização
+            // 3. Startup Items
             var currentStartups = GetStartups();
             foreach (var stState in capture.Startups)
             {
                 var current = currentStartups.FirstOrDefault(x => x.Name.Equals(stState.Name, StringComparison.OrdinalIgnoreCase));
-                if (current is null) continue;
-                if (stState.DisabledByTothBoost && !current.DisabledByTothBoost)
+                if (current is null || current.DisabledByTothBoost == stState.DisabledByTothBoost) continue;
+                try
                 {
-                    try
-                    {
-                        StartupScanner.Disable(current);
-                        report.Add(current.Name, "perfil → desabilitar inicialização", true);
-                    }
-                    catch (Exception ex) { report.AddError(current.Name, "perfil inicialização", ex); }
+                    StartupScanner.SetDisabled(current, stState.DisabledByTothBoost);
+                    report.Add(current.Name, stState.DisabledByTothBoost ? "disabled" : "enabled", true);
                 }
-                else if (!stState.DisabledByTothBoost && current.DisabledByTothBoost)
+                catch (Exception ex)
                 {
-                    try
-                    {
-                        StartupScanner.Enable(current);
-                        report.Add(current.Name, "perfil → habilitar inicialização", true);
-                    }
-                    catch (Exception ex) { report.AddError(current.Name, "perfil inicialização", ex); }
+                    report.AddError(current.Name, "apply startup profile", ex);
                 }
             }
 
-            // 4. Ajustes (Tweaks)
+            // 4. Tweaks
             foreach (var twState in capture.Tweaks)
             {
-                if (Enum.TryParse<TweakKind>(twState.Id, out var kind))
+                if (!Enum.TryParse<TweakKind>(twState.Id, out var kind)) continue;
+                var isApplied = TweakManager.IsApplied(kind);
+                if (isApplied != twState.Applied)
                 {
-                    var isApplied = TweakManager.IsApplied(kind);
-                    if (twState.Applied && !isApplied)
-                    {
-                        try
-                        {
-                            TweakManager.Apply(kind);
-                            report.Add(TweakCatalog.Get(twState.Id).Name, "perfil → aplicar ajuste", true);
-                        }
-                        catch (Exception ex) { report.AddError(twState.Id, "perfil ajuste", ex); }
-                    }
-                    else if (!twState.Applied && isApplied)
-                    {
-                        try
-                        {
-                            TweakManager.Revert(kind);
-                            report.Add(TweakCatalog.Get(twState.Id).Name, "perfil → reverter ajuste", true);
-                        }
-                        catch (Exception ex) { report.AddError(twState.Id, "perfil ajuste", ex); }
-                    }
+                    var res = twState.Applied ? ApplyTweak(twState.Id) : RevertTweak(twState.Id);
+                    report.Merge(res);
                 }
             }
 
@@ -243,9 +172,11 @@ namespace TothBoost.Core
             return report;
         }
 
-        // ---------- Pontos de restauração ----------
+        public List<RestorePointService.RestorePointItem> ListRestorePoints() => RestorePointService.ListPoints();
 
-        public List<RestorePointInfo> ListRestorePoints() => RestorePointService.ListPoints();
+        public (bool Ok, string Message) CreateRestorePoint(string description) => RestorePointService.CreatePoint(description);
+
+        public (bool Ok, string Message) RestoreSystemToPoint(long sequence) => RestorePointService.RestoreToPoint(sequence);
 
         public (bool Ok, string Message) DeleteRestorePoint(long sequence) => RestorePointService.DeletePoint(sequence);
 
@@ -265,14 +196,14 @@ namespace TothBoost.Core
             return all.ToList();
         }
 
-        // ---------- Serviços ----------
+        // ---------- Services ----------
 
-        /// <summary>Desabilita serviços (inicialização = desabilitado) e os para.</summary>
+        /// <summary>Disables services and stops them.</summary>
         public ActionReport DisableServices(IEnumerable<string> names, IEnumerable<ServiceInfo> services)
         {
             var report = new ActionReport();
             var list = names.ToList();
-            if (list.Count == 0) { report.Add("Seleção", "nenhuma alteração", true, "Nenhum item selecionado."); return report; }
+            if (list.Count == 0) { report.Add("Selection", "no changes", true, "No items selected."); return report; }
             EnsureBaseline();
 
             foreach (var n in list)
@@ -282,212 +213,107 @@ namespace TothBoost.Core
                 {
                     if (svc is { IsProtected: true })
                     {
-                        report.Add(n, "bloqueado", false, "Serviço protegido — desativar pode danificar o Windows.");
+                        report.Add(n, "blocked", false, "Protected service — disabling may damage Windows.");
                         continue;
                     }
-                    if (svc is { StartKind: ServiceStartKind.Disabled } && svc.RunningState == "Parado")
+                    if (svc is { StartKind: ServiceStartKind.Disabled } && svc.RunningState == "Stopped")
                     {
-                        report.Add(n, "já desabilitado", true);
+                        report.Add(n, "already disabled", true);
                         continue;
                     }
                     ServiceActions.ChangeStartKind(n, ServiceStartKind.Disabled);
-                    report.Add(n, "desabilitado", true);
-                    if (svc?.RunningState == "Executando")
+                    report.Add(n, "disabled", true);
+                    if (svc?.RunningState == "Running")
                     {
-                        try { ServiceActions.Stop(n); report.Add(n, "parado", true); }
-                        catch (Exception ex) { report.AddError(n, "parar", ex); }
+                        try
+                        {
+                            ServiceActions.Stop(n);
+                            report.Add(n, "stopped", true);
+                        }
+                        catch (Exception ex) { report.AddError(n, "stop service", ex); }
                     }
                 }
-                catch (Exception ex) { report.AddError(n, "desabilitar", ex); }
+                catch (Exception ex) { report.AddError(n, "disable service", ex); }
             }
             return report;
         }
 
-        public ActionReport EnableServices(IEnumerable<string> names, ServiceStartKind target)
+        /// <summary>Enables services (sets start type) and optionally starts them.</summary>
+        public ActionReport EnableServices(IEnumerable<string> names, ServiceStartKind targetStart, IEnumerable<ServiceInfo> services)
         {
             var report = new ActionReport();
             var list = names.ToList();
-            if (list.Count == 0) { report.Add("Seleção", "nenhuma alteração", true, "Nenhum item selecionado."); return report; }
-            EnsureBaseline();
+            if (list.Count == 0) { report.Add("Selection", "no changes", true, "No items selected."); return report; }
+
             foreach (var n in list)
             {
+                var svc = services.FirstOrDefault(s => s.Name == n);
                 try
                 {
-                    if (target == ServiceStartKind.Automatic)
+                    if (svc is { IsProtected: true })
                     {
-                        ServiceActions.ChangeStartKind(n, ServiceStartKind.Automatic);
-                        report.Add(n, "inicialização → automático", true);
-                        try { ServiceActions.Start(n); report.Add(n, "iniciado", true); }
-                        catch (Exception ex) { report.AddError(n, "iniciar", ex); }
-                    }
-                    else
-                    {
-                        ServiceActions.ChangeStartKind(n, target);
-                        report.Add(n, $"inicialização → {Label(target)}", true);
-                    }
-                }
-                catch (Exception ex) { report.AddError(n, "habilitar", ex); }
-            }
-            return report;
-        }
-
-        public ActionReport StopServices(IEnumerable<string> names)
-        {
-            var report = new ActionReport();
-            EnsureBaseline();
-            foreach (var n in names)
-            {
-                try { ServiceActions.Stop(n); report.Add(n, "parado", true); }
-                catch (Exception ex) { report.AddError(n, "parar", ex); }
-            }
-            return report;
-        }
-
-        public ActionReport StartServices(IEnumerable<string> names)
-        {
-            var report = new ActionReport();
-            EnsureBaseline();
-            foreach (var n in names)
-            {
-                try { ServiceActions.Start(n); report.Add(n, "iniciado", true); }
-                catch (Exception ex) { report.AddError(n, "iniciar", ex); }
-            }
-            return report;
-        }
-
-        /// <summary>Aplica o perfil de jogos: desabilita e para todos os serviços classificados como "Recomendado".</summary>
-        public ActionReport ApplyGamingPreset(IEnumerable<ServiceInfo> services)
-        {
-            var report = new ActionReport();
-            EnsureBaseline();
-            var safe = services.Where(s => !s.IsProtected && s.Risk == RiskLevel.Recommended).ToList();
-            if (safe.Count == 0) { report.Add("Perfil de jogos", "nada a fazer", true, "Nenhum serviço recomendado encontrado."); return report; }
-            foreach (var s in safe)
-            {
-                try
-                {
-                    if (s.StartKind == ServiceStartKind.Disabled && s.RunningState == "Parado")
-                    {
-                        report.Add(s.Name, "já desabilitado", true);
+                        report.Add(n, "blocked", false, "Protected service.");
                         continue;
                     }
-                    ServiceActions.ChangeStartKind(s.Name, ServiceStartKind.Disabled);
-                    report.Add(s.Name, "desabilitado (perfil de jogos)", true);
-                    if (s.RunningState == "Executando")
+                    ServiceActions.ChangeStartKind(n, targetStart);
+                    report.Add(n, $"enabled ({targetStart})", true);
+                    try
                     {
-                        try { ServiceActions.Stop(s.Name); report.Add(s.Name, "parado", true); }
-                        catch (Exception ex) { report.AddError(s.Name, "parar", ex); }
+                        ServiceActions.Start(n);
+                        report.Add(n, "started", true);
                     }
+                    catch (Exception ex) { report.AddError(n, "start service", ex); }
                 }
-                catch (Exception ex) { report.AddError(s.Name, "perfil de jogos", ex); }
+                catch (Exception ex) { report.AddError(n, "enable service", ex); }
             }
             return report;
         }
 
-        // ---------- Tarefas agendadas ----------
-
-        public ActionReport SetTasksEnabled(IEnumerable<ScheduledTaskInfo> tasks, bool enabled)
+        /// <summary>Applies Game Profile: disables all services classified as "Recommended".</summary>
+        public ActionReport ApplyGameProfile()
         {
-            var report = new ActionReport();
             EnsureBaseline();
-            foreach (var t in tasks)
-            {
-                try
-                {
-                    TaskActions.SetEnabled(t.FullPath, enabled);
-                    report.Add(t.Name, enabled ? "habilitado" : "desabilitado", true);
-                }
-                catch (Exception ex) { report.AddError(t.Name, "tarefa", ex); }
-            }
-            return report;
+            var services = GetServices();
+            var rec = services.Where(s => s.Risk == RiskLevel.Recommended && !s.IsProtected).Select(s => s.Name);
+            return DisableServices(rec, services);
         }
 
-        // ---------- Inicialização ----------
-
-        public ActionReport DisableStartups(IEnumerable<StartupItem> items)
+        /// <summary>Restores initial system baseline (100% original state).</summary>
+        public ActionReport RestoreBaseline()
         {
-            var report = new ActionReport();
             EnsureBaseline();
-            foreach (var it in items)
-            {
-                try
-                {
-                    if (it.DisabledByTothBoost) { report.Add(it.Name, "já desabilitado", true); continue; }
-                    StartupScanner.Disable(it);
-                    report.Add(it.Name, "desabilitado", true);
-                }
-                catch (Exception ex) { report.AddError(it.Name, "desabilitar", ex); }
-            }
-            return report;
+            var currentServices = GetServices();
+            var currentTasks = GetTasks();
+            var currentStartups = GetStartups();
+            return SnapshotService.Restore("baseline", currentServices, currentTasks, currentStartups);
         }
 
-        public ActionReport EnableStartups(IEnumerable<StartupItem> items)
+        public ActionReport ApplyTweak(string tweakId)
         {
-            var report = new ActionReport();
             EnsureBaseline();
-            foreach (var it in items)
+            if (!Enum.TryParse<TweakKind>(tweakId, out var kind))
             {
-                try
-                {
-                    if (!it.DisabledByTothBoost) { report.Add(it.Name, "já habilitado", true); continue; }
-                    StartupScanner.Enable(it);
-                    report.Add(it.Name, "habilitado", true);
-                }
-                catch (Exception ex) { report.AddError(it.Name, "habilitar", ex); }
+                var r = new ActionReport();
+                r.Add(tweakId, "tweak", false, "Unknown tweak.");
+                return r;
             }
-            return report;
+            return TweakManager.Apply(kind);
         }
 
-        // ---------- Ajustes ----------
-
-        public ActionReport ApplyTweak(string id)
+        public ActionReport RevertTweak(string tweakId)
         {
-            var report = new ActionReport();
             EnsureBaseline();
-            if (!Enum.TryParse<TweakKind>(id, out var kind)) { report.Add(id, "ajuste", false, "ID desconhecido"); return report; }
-            try
+            if (!Enum.TryParse<TweakKind>(tweakId, out var kind))
             {
-                TweakManager.Apply(kind);
-                SnapshotService.RecordAppliedTweak(id);
-                report.Add(TweakCatalog.Get(id).Name, "aplicado", true);
+                var r = new ActionReport();
+                r.Add(tweakId, "tweak", false, "Unknown tweak.");
+                return r;
             }
-            catch (Exception ex) { report.AddError(TweakCatalog.Get(id).Name, "aplicar ajuste", ex); }
-            return report;
+            return TweakManager.Revert(kind);
         }
 
-        public ActionReport RevertTweak(string id)
-        {
-            var report = new ActionReport();
-            if (!Enum.TryParse<TweakKind>(id, out var kind)) { report.Add(id, "ajuste", false, "ID desconhecido"); return report; }
-            try
-            {
-                TweakManager.Revert(kind);
-                report.Add(TweakCatalog.Get(id).Name, "removido", true);
-            }
-            catch (Exception ex) { report.AddError(TweakCatalog.Get(id).Name, "remover ajuste", ex); }
-            return report;
-        }
-
-        // ---------- Restauração ----------
-
-        public ActionReport Restore(string snapshotName) => SnapshotService.Restore(snapshotName);
-
-        public List<SnapshotItem> ListSnapshots() => SnapshotService.List();
-
-        /// <summary>Cria um snapshot manual com o estado ATUAL (nome único por hora).</summary>
-        public void CreateSnapshot(string name)
-        {
-            SnapshotService.Create(name, GetServices(), GetTasks(), new StartupScanner().ScanAll());
-        }
-
-        private static string Label(ServiceStartKind k) => k switch
-        {
-            ServiceStartKind.Boot => "inicialização (boot)",
-            ServiceStartKind.System => "sistema",
-            ServiceStartKind.Automatic => "automático",
-            ServiceStartKind.Manual => "manual",
-            ServiceStartKind.Disabled => "desabilitado",
-            _ => "?"
-        };
+        public List<ServiceInfo> GetServices() => _svcScanner.ScanAll();
+        public List<ProcessInfo> GetProcesses() => new ProcessScanner().ScanAll();
+        public List<ScheduledTaskInfo> GetTasks() => _taskScanner.ScanAll();
     }
 }

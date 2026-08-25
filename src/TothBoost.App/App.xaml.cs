@@ -1,7 +1,9 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using TothBoost.Core;
 using TothBoost.Core.Models;
+using TothBoost.Core.Scanners;
+using TothBoost.Core.Utilities;
 
 namespace TothBoost.App
 {
@@ -14,8 +16,6 @@ namespace TothBoost.App
             AppDomain.CurrentDomain.UnhandledException += (_, a) => LogCrash(a.ExceptionObject as Exception);
             DispatcherUnhandledException += (_, a) => { LogCrash(a.Exception); };
 
-            var shotArg = e.Args.FirstOrDefault(a => a.StartsWith("--shot=", StringComparison.OrdinalIgnoreCase));
-
             if (e.Args.Any(a => a.Equals("--smoketest", StringComparison.OrdinalIgnoreCase)))
             {
                 RunSmokeTest();
@@ -26,97 +26,24 @@ namespace TothBoost.App
             _mutex = new Mutex(true, @"Global\TothBoost_SingleInstance", out var createdNew);
             if (!createdNew)
             {
-                MessageBox.Show("O TothBoost já está em execução.", "TothBoost", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("TothBoost is already running.", "TothBoost", MessageBoxButton.OK, MessageBoxImage.Information);
                 Shutdown();
                 return;
             }
 
-            if (!TothBoost.Core.Utilities.Elevation.IsElevated)
+            if (!Elevation.IsElevated)
             {
                 MessageBox.Show(
-                    "O TothBoost precisa ser executado como ADMINISTRADOR para poder " +
-                    "gerenciar serviços, tarefas e inicialização do sistema.\n\n" +
-                    "Clique com o botão direito no executável e escolha 'Executar como administrador'.",
-                    "Permissão de administrador necessária",
+                    "TothBoost must be run as ADMINISTRATOR to manage Windows services, tasks, and startup items.\n\n" +
+                    "Right-click the executable and choose 'Run as administrator'.",
+                    "Administrator privileges required",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 Shutdown();
                 return;
             }
 
-            var tabArg = e.Args.FirstOrDefault(a => a.StartsWith("--tab=", StringComparison.OrdinalIgnoreCase));
-            _tabToSelect = tabArg?[6..];
-
             base.OnStartup(e);
-
-            if (shotArg is not null)
-            {
-                // Captura interna do conteudo da janela (debito: ferramenta de
-                // verificacao) -- gera PNG real da arvore visual WPF.
-                var outPath = shotArg[7..];
-                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,
-                    async () =>
-                    {
-                        try
-                        {
-                            await Task.Delay(1500);
-                            if (MainWindow is not TothBoost.App.MainWindow win) { Shutdown(); return; }
-                            SelectTab(win);
-                            win.UpdateLayout();
-
-                            if (string.IsNullOrEmpty(outPath))
-                            {
-                                // nada: difere da GUI normal
-                                Shutdown(); return;
-                            }
-
-                            var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
-                                (int)win.ActualWidth, (int)win.ActualHeight, 96, 96,
-                                System.Windows.Media.PixelFormats.Pbgra32);
-                            rtb.Render(win);
-                            var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
-                            enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
-                            using (var fs = System.IO.File.Create(outPath))
-                            {
-                                enc.Save(fs);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            File.AppendAllText(Path.Combine(Path.GetTempPath(), "tothboost-shot-error.log"), ex.ToString() + Environment.NewLine);
-                        }
-                        Shutdown();
-                    });
-            }
-            else if (_tabToSelect is not null)
-            {
-                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
-                {
-                    try
-                    {
-                        if (MainWindow is TothBoost.App.MainWindow win) SelectTab(win);
-                    }
-                    catch { }
-                });
-            }
         }
-
-        private static void SelectTab(TothBoost.App.MainWindow win)
-        {
-            if (_tabToSelect is null) return;
-            var header = _tabToSelect;
-            for (int i = 0; i < win.Tabs.Items.Count; i++)
-            {
-                if (win.Tabs.Items[i] is System.Windows.Controls.TabItem ti &&
-                    (ti.Header?.ToString()?.Equals(header, StringComparison.OrdinalIgnoreCase) == true ||
-                     ti.Header?.ToString()?.Replace(" ", "")?.Equals(header.Replace(" ", ""), StringComparison.OrdinalIgnoreCase) == true))
-                {
-                    win.Tabs.SelectedIndex = i;
-                    break;
-                }
-            }
-        }
-
-        private static string? _tabToSelect;
 
         protected override void OnExit(ExitEventArgs e)
         {
@@ -136,9 +63,8 @@ namespace TothBoost.App
         }
 
         /// <summary>
-        /// Modo de verificação headless (--smoketest): confirma que a linha de base é
-        /// criada, que um serviço pode ser desabilitado e que a restauração devolve
-        /// o estado exato. NÃO abre janela.
+        /// Headless smoke test (--smoketest): verifies baseline creation, service
+        /// disable/re-enable, and full restoration. Does not open a window.
         /// </summary>
         private void RunSmokeTest()
         {
@@ -151,13 +77,13 @@ namespace TothBoost.App
             }
             try
             {
-                File.WriteAllText(logPath, $"SMOKE TEST {DateTime.Now:u}" + Environment.NewLine);
+                File.WriteAllText(logPath, "SMOKE TEST " + DateTime.Now.ToString("u") + Environment.NewLine);
                 var engine = new BoostEngine();
                 engine.EnsureBaseline();
-                Log($"BASELINE: {(engine.BaselineExists ? "OK" : "FALHA")}  => {TothBoost.Core.Snapshot.SnapshotService.Root}");
+                Log("BASELINE: " + (engine.BaselineExists ? "OK" : "FAIL") + "  => " + TothBoost.Core.Snapshot.SnapshotService.Root);
 
                 var services = engine.GetServices();
-                Log($"SERVICES: {services.Count} totais, {services.Count(s => s.IsProtected)} protegidos, {services.Count(s => s.Risk == RiskLevel.Recommended)} recomendados");
+                Log($"SERVICES: {services.Count} total, {services.Count(s => s.IsProtected)} protected, {services.Count(s => s.Risk == RiskLevel.Recommended)} recommended");
 
                 var candidate = services.FirstOrDefault(s =>
                     !s.IsProtected &&
@@ -165,25 +91,25 @@ namespace TothBoost.App
                     s.StartKind != ServiceStartKind.Disabled);
                 if (candidate is null)
                 {
-                    Log("RESULTADO: FALHA — nenhum serviço candidato encontrado para o teste.");
+                    Log("RESULT: FAIL - no candidate service found for test.");
                 }
                 else
                 {
                     var before = (int)candidate.StartKind;
-                    Log($"CANDIDATO: {candidate.Name} (start={before})");
+                    Log("CANDIDATE: " + candidate.Name + " (start=" + before + ")");
 
                     var rep1 = engine.DisableServices(new[] { candidate.Name }, services);
-                    Log($"DISABLING: {rep1.Succeeded} ok / {rep1.Failed} falhas");
-                    var after = TothBoost.Core.Snapshot.SnapshotService.CurrentStartKind(candidate.Name);
-                    Log($"VERIFY DISABLED: current start (int) = {after} (esperado 4)");
+                    Log($"DISABLING: {rep1.SuccessCount} ok / {rep1.ErrorCount} failed");
+                    var after = ServiceAccessor.CurrentStartKind(candidate.Name);
+                    Log("VERIFY DISABLED: current start (int) = " + after + " (expected 4)");
 
-                    var rep2 = engine.Restore("baseline");
-                    Log($"RESTORE: {rep2.Succeeded} ok / {rep2.Failed} falhas");
-                    var restored = TothBoost.Core.Snapshot.SnapshotService.CurrentStartKind(candidate.Name);
-                    Log($"VERIFY RESTORED: start (int) = {restored} (original {before})");
+                    var rep2 = engine.RestoreBaseline();
+                    Log($"RESTORE: {rep2.SuccessCount} ok / {rep2.ErrorCount} failed");
+                    var restored = ServiceAccessor.CurrentStartKind(candidate.Name);
+                    Log("VERIFY RESTORED: start (int) = " + restored + " (original " + before + ")");
 
-                    var ok = after == ServiceStartKind.Disabled && restored == (ServiceStartKind)before;
-                    Log($"RESULTADO: {(ok ? "PASS" : "FAIL")}");
+                    var ok = after == (int)ServiceStartKind.Disabled && restored == before;
+                    Log("RESULT: " + (ok ? "PASS" : "FAIL"));
                 }
 
                 var tasks = engine.GetTasks();
@@ -193,8 +119,21 @@ namespace TothBoost.App
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("SMOKE FAIL: " + ex);
+                console.AppendLine("EXCEPTION: " + ex);
+                File.AppendAllText(logPath, "EXCEPTION: " + ex + Environment.NewLine);
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                Console.WriteLine(console.ToString());
             }
+        }
+    }
+
+    internal static class ServiceAccessor
+    {
+        public static int CurrentStartKind(string serviceName)
+        {
+            using var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Services\" + serviceName);
+            return k?.GetValue("Start") is int i ? i : -1;
         }
     }
 }

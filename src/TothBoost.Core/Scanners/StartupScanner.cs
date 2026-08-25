@@ -11,16 +11,16 @@ namespace TothBoost.Core.Scanners
         public string OriginalPath { get; set; } = "";
         public string Location { get; set; } = "";
     }
+
     /// <summary>
-    /// Lista a inicialização automática (registro + pastas de inicialização).
-    /// Desabilitar NUNCA exclui: valores de registro são movidos para uma
-    /// subchave de segurança do TothBoost e atalhos/arquivos são movidos para
-    /// uma pasta protegida — tudo reversível e restaurado pelo snapshot.
+    /// Scans automatic startup items (Registry + Startup Folders).
+    /// Disabling NEVER deletes items: registry values are moved to a safety subkey
+    /// and shortcuts/files are moved to a quarantine folder — fully reversible.
     /// </summary>
     public class StartupScanner
     {
         public static string QuarantineRoot => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TothBoost", "Restauração");
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TothBoost", "Restoration");
 
         public List<StartupItem> ScanAll()
         {
@@ -49,14 +49,13 @@ namespace TothBoost.Core.Scanners
                 catch { }
             }
 
-            AddRegistry(Registry.LocalMachine, RegistryKeys.RunLm, "Execução automática (HKLM)");
-            AddRegistry(Registry.LocalMachine, RegistryKeys.RunLmWow, "Execução automática (HKLM Wow64)");
-            AddRegistry(Registry.CurrentUser, RegistryKeys.RunCu, "Execução automática (usuário)");
-            AddRegistry(Registry.LocalMachine, RegistryKeys.RunOnceLm, "Execução única (HKLM)");
-            AddRegistry(Registry.CurrentUser, RegistryKeys.RunOnceCu, "Execução única (usuário)");
+            AddRegistry(Registry.LocalMachine, RegistryKeys.RunLm, "Auto-Execution (HKLM)");
+            AddRegistry(Registry.CurrentUser, RegistryKeys.RunCu, "Auto-Execution (HKCU)");
+            AddRegistry(Registry.LocalMachine, RegistryKeys.RunOnceLm, "Run Once (HKLM)");
+            AddRegistry(Registry.CurrentUser, RegistryKeys.RunOnceCu, "Run Once (HKCU)");
 
-            ScanFolder(items, Environment.GetFolderPath(Environment.SpecialFolder.Startup), "Pasta Inicialização (usuário)");
-            ScanFolder(items, Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup), "Pasta Inicialização (comum)");
+            ScanFolder(items, Environment.GetFolderPath(Environment.SpecialFolder.Startup), "User Startup Folder");
+            ScanFolder(items, Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup), "All Users Startup Folder");
 
             ScanQuarantinedFiles(items);
 
@@ -94,7 +93,7 @@ namespace TothBoost.Core.Scanners
         private static bool IsFileQuarantined(string filePath) =>
             File.Exists(Path.Combine(QuarantineFiles, Path.GetFileName(filePath)));
 
-        public static string QuarantineFiles => Path.Combine(QuarantineRoot, "arquivos");
+        public static string QuarantineFiles => Path.Combine(QuarantineRoot, "files");
         public static string QuarantineMetaFile => Path.Combine(QuarantineRoot, "quarantine_files.json");
         public static string QuarantineKey(string key) => RegistryKeys.RunMaxKwT + "\\" + Sanitize(key);
         private static string Sanitize(string key) => key.Replace('\\', '_').Replace('/', '_');
@@ -137,7 +136,7 @@ namespace TothBoost.Core.Scanners
 
                 var meta = metas.FirstOrDefault(m => string.Equals(m.Name, fileName, StringComparison.OrdinalIgnoreCase));
                 var origPath = meta?.OriginalPath ?? f;
-                var location = meta?.Location ?? "Pasta Inicialização (quarentena)";
+                var location = meta?.Location ?? "Startup Folder (Quarantine)";
 
                 if (!items.Any(i => string.Equals(i.Name, fileName, StringComparison.OrdinalIgnoreCase)))
                 {
@@ -147,89 +146,87 @@ namespace TothBoost.Core.Scanners
                         Location = location,
                         Command = origPath,
                         IsFolder = true,
-                        Existing = true,
+                        Existing = false,
                         DisabledByTothBoost = true
                     });
                 }
             }
         }
 
-        // ---------- Ações (nunca excluem) ----------
-
-        public static void Disable(StartupItem item)
+        public static void SetDisabled(StartupItem item, bool disable)
         {
-            if (item.IsFolder) DisableFile(item);
-            else DisableRegistry(item);
+            if (item.IsFolder) ToggleFileQuarantine(item, disable);
+            else ToggleRegistryQuarantine(item, disable);
         }
 
-        public static void Enable(StartupItem item)
+        private static void ToggleRegistryQuarantine(StartupItem item, bool disable)
         {
-            if (item.IsFolder) EnableFile(item);
-            else EnableRegistry(item);
-        }
-
-        private static void DisableRegistry(StartupItem item)
-        {
-            if (item.LocationKey is null) return;
+            if (string.IsNullOrEmpty(item.LocationKey)) return;
             var hive = IsLm(item.LocationKey) ? Registry.LocalMachine : Registry.CurrentUser;
-            using (var k = hive.OpenSubKey(item.LocationKey!, true))
+            var qKey = QuarantineKey(item.LocationKey);
+
+            if (disable)
             {
-                if (k is null) return;
-                using var q = hive.CreateSubKey(QuarantineKey(item.LocationKey), true);
-                q.SetValue(item.Name, k.GetValue(item.Name)?.ToString() ?? "", RegistryValueKind.String);
-                k.DeleteValue(item.Name, false);
+                using var src = hive.OpenSubKey(item.LocationKey, writable: true);
+                var val = src?.GetValue(item.Name);
+                if (val is null) return;
+                using var dst = hive.CreateSubKey(qKey);
+                dst.SetValue(item.Name, val);
+                src!.DeleteValue(item.Name, throwOnMissingValue: false);
+            }
+            else
+            {
+                using var dst = hive.OpenSubKey(qKey, writable: true);
+                var val = dst?.GetValue(item.Name);
+                if (val is null) return;
+                using var src = hive.OpenSubKey(item.LocationKey, writable: true) ?? hive.CreateSubKey(item.LocationKey);
+                src.SetValue(item.Name, val);
+                dst!.DeleteValue(item.Name, throwOnMissingValue: false);
             }
         }
 
-        private static void EnableRegistry(StartupItem item)
-        {
-            if (item.LocationKey is null) return;
-            var hive = IsLm(item.LocationKey) ? Registry.LocalMachine : Registry.CurrentUser;
-            using var q = hive.OpenSubKey(QuarantineKey(item.LocationKey));
-            if (q is null) return;
-            using var k = hive.CreateSubKey(item.LocationKey!, true);
-            k.SetValue(item.Name, q.GetValue(item.Name)?.ToString() ?? "", RegistryValueKind.String);
-            q.DeleteValue(item.Name, false);
-        }
-
-        private static void DisableFile(StartupItem item)
+        private static void ToggleFileQuarantine(StartupItem item, bool disable)
         {
             if (string.IsNullOrEmpty(item.Command)) return;
             Directory.CreateDirectory(QuarantineFiles);
-            var dest = Path.Combine(QuarantineFiles, Path.GetFileName(item.Command));
-
             var metas = LoadQuarantineFileMetas();
-            metas.RemoveAll(m => string.Equals(m.Name, item.Name, StringComparison.OrdinalIgnoreCase));
-            metas.Add(new QuarantineFileMeta
-            {
-                Name = item.Name,
-                OriginalPath = item.Command,
-                Location = item.Location
-            });
-            SaveQuarantineFileMetas(metas);
 
-            File.Move(item.Command, dest, true);
-        }
-
-        private static void EnableFile(StartupItem item)
-        {
             var fileName = Path.GetFileName(item.Command);
-            var metas = LoadQuarantineFileMetas();
-            var meta = metas.FirstOrDefault(m => string.Equals(m.Name, fileName, StringComparison.OrdinalIgnoreCase));
+            var qFile = Path.Combine(QuarantineFiles, fileName);
 
-            var src = Path.Combine(QuarantineFiles, fileName);
-            if (!File.Exists(src)) return;
+            if (disable)
+            {
+                if (File.Exists(item.Command))
+                {
+                    if (File.Exists(qFile)) File.Delete(qFile);
+                    File.Move(item.Command, qFile);
 
-            var targetPath = meta?.OriginalPath ?? item.Command;
-            if (string.IsNullOrEmpty(targetPath)) return;
+                    metas.RemoveAll(m => string.Equals(m.Name, fileName, StringComparison.OrdinalIgnoreCase));
+                    metas.Add(new QuarantineFileMeta
+                    {
+                        Name = fileName,
+                        OriginalPath = item.Command,
+                        Location = item.Location
+                    });
+                    SaveQuarantineFileMetas(metas);
+                }
+            }
+            else
+            {
+                var meta = metas.FirstOrDefault(m => string.Equals(m.Name, fileName, StringComparison.OrdinalIgnoreCase));
+                var targetPath = meta?.OriginalPath ?? item.Command;
 
-            var dir = Path.GetDirectoryName(targetPath);
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                if (File.Exists(qFile))
+                {
+                    var targetDir = Path.GetDirectoryName(targetPath);
+                    if (!string.IsNullOrEmpty(targetDir)) Directory.CreateDirectory(targetDir);
+                    if (File.Exists(targetPath)) File.Delete(targetPath);
 
-            File.Move(src, targetPath, true);
-
-            metas.RemoveAll(m => string.Equals(m.Name, fileName, StringComparison.OrdinalIgnoreCase));
-            SaveQuarantineFileMetas(metas);
+                    File.Move(qFile, targetPath);
+                    metas.RemoveAll(m => string.Equals(m.Name, fileName, StringComparison.OrdinalIgnoreCase));
+                    SaveQuarantineFileMetas(metas);
+                }
+            }
         }
     }
 }

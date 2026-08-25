@@ -1,141 +1,141 @@
-# 🚀 TothBoost — Otimizador de Desempenho para Jogos (Windows 10/11)
+# 🚀 TothBoost — Windows 10/11 Performance Optimizer for Gaming
 
-**TothBoost** é uma aplicação desktop avançada desenvolvida em **C# / .NET 10 (WPF)** focada em otimizar o desempenho do Windows para jogos e tarefas de alta performance, mantendo a estabilidade e a segurança total do sistema operacional através de pontos de restauração e backups automáticos.
-
----
-
-## 📌 Sumário
-- [Recursos Principais](#-recursos-principais)
-- [Como Funciona (Arquitetura e Segurança)](#-como-funciona-arquitetura-e-segurança)
-- [Como Instalar e Usar (Usuário Final)](#-como-instalar-e-usar-usuário-final)
-- [Requisitos do Sistema & Dependências](#-requisitos-do-sistema--dependências)
-- [Guia do Desenvolvedor](#-guia-do-desenvolvedor)
-  - [Pré-requisitos de Desenvolvimento](#pré-requisitos-de-desenvolvimento)
-  - [Estrutura do Projeto](#estrutura-do-projeto)
-  - [Comandos Principais (Build & Testes)](#comandos-principais-build--testes)
-  - [Adicionando Novos Ajustes ou Regras de Serviços](#adicionando-novos-ajustes-ou-regras-de-serviços)
-- [Pipeline de CI/CD](#-pipeline-de-cicd)
-- [Licença](#-licença)
+**TothBoost** is an advanced desktop application built with **C# / .NET 10 (WPF)** designed to optimize Windows performance for gaming and demanding workloads while maintaining absolute system stability and safety via automatic system restore points and baseline snapshots.
 
 ---
 
-## ⚡ Recursos Principais
-
-- **⚡ Gerenciador de Processos ao Vivo**: Exibe uso de CPU, memória RAM, leitura/gravação de disco e métricas em tempo real. Permite encerrar e reiniciar processos de forma assíncrona.
-- **🛡️ Classificação de Segurança de Serviços**: Separação clara entre serviços de usuário e serviços protegidos do kernel do Windows. Impede que o usuário encerre acidentalmente componentes essenciais do sistema.
-- **🚀 Otimização em 1 Clique (Perfil de Jogos)**: Desativa e para automaticamente serviços desnecessários ou secundários durante partidas.
-- **📋 Tarefas Agendadas e Inicialização Automática**: Varredura avançada com suporte a quarentena reversível para programas e tarefas de fundo.
-- **🛠️ Ajustes Finos de SO (Tweaks)**: Ativação de plano de Alto Desempenho / Desempenho Máximo, remoção de transparências/animações desnecessárias, ajustes de memória e registro.
-- **💾 Gerenciador de Perfis Múltiplos**: Salve e alterne perfis de otimização customizados mantendo sempre o perfil `Default` como linha de base intacta.
-- **⏪ Pontos de Restauração Integrados**: Criação de ponto de restauração do Windows antes de qualquer modificação ser realizada no computador.
-
----
-
-## 🛡️ Como Funciona (Arquitetura e Segurança)
-
-O TothBoost opera sob o princípio de **Segurança em Primeiro Lugar**:
-
-1. **Trava de Linha de Base (First-Run Baseline)**: Na primeira inicialização, o TothBoost obrigatoriamente cria um Ponto de Restauração no Windows e grava o perfil `Default` contendo o estado original exato de todos os serviços, tarefas, inicializações e ajustes do sistema.
-2. **Knowledge Base (Base de Conhecimento)**: Através do arquivo `knowledge.json` e regras heurísticas no `TothBoost.Core`, a aplicação categoriza serviços em:
-   - 🔴 **Protegidos**: Componentes de kernel/drivers do sistema (não modificáveis).
-   - 🟢 **Recomendados para Jogos**: Serviços secundários que podem ser desativados sem comprometer a estabilidade.
-   - 🟡 **Cautela / Opcionais**: Serviços que dependem do uso específico do usuário (ex: impressão, bluetooth).
-3. **Quarentena Reversível**: Programas desativados da inicialização não são excluídos; são movidos para chaves de isolamento e pasta de quarentena do TothBoost (`%ProgramData%\TothBoost\Restauração`), permitindo restauração instantânea.
+## 📌 Table of Contents
+- [Key Features](#-key-features)
+- [How It Works (Architecture & Safety)](#-how-it-works-architecture--safety)
+- [Installation & Usage (End Users)](#-installation--usage-end-users)
+- [System Requirements & Dependencies](#-system-requirements--dependencies)
+- [Developer Guide](#-developer-guide)
+  - [Prerequisites](#prerequisites)
+  - [Project Structure](#project-structure)
+  - [Build & Testing Commands](#build--testing-commands)
+  - [Adding New Tweaks or Service Rules](#adding-new-tweaks-or-service-rules)
+- [CI/CD Pipeline](#-cicd-pipeline)
+- [License](#-license)
 
 ---
 
-## 📥 Como Instalar e Usar (Usuário Final)
+## ⚡ Key Features
 
-Nenhum instalador complexo é necessário. O TothBoost é distribuído como um executável único e independente (*Single-File Executable*).
-
-1. Acesse as **Releases** no repositório GitHub.
-2. Faça o download da versão mais recente do arquivo **`TothBoost.exe`**.
-3. Clique com o botão direito sobre o arquivo `TothBoost.exe` e selecione **"Executar como Administrador"** (necessário para gerenciar serviços e criar pontos de restauração do Windows).
-4. Ao abrir pela primeira vez, o TothBoost criará a linha de base de segurança. A partir daí, você estará livre para aplicar o **Perfil de Jogos** ou personalizar seus ajustes.
-
----
-
-## 💻 Requisitos do Sistema & Dependências
-
-### Para o Usuário Final:
-- **Sistema Operacional**: Windows 10 (64-bit) ou Windows 11 (64-bit).
-- **Privilégios**: Direitos de Administrador no Windows.
-- **Dependências**: **NENHUMA**. O executável é 100% autocontido (*self-contained*), incluindo todas as bibliotecas e o runtime do .NET 10 embutidos dentro do único arquivo `.exe`.
+- **⚡ Real-Time Process Manager**: Live CPU, RAM, Disk I/O (Read/Write) metrics using fast Win32 APIs. Asynchronous process termination and restarting with zero UI freezing.
+- **🛡️ Service Safety Classification**: Clear separation between user services and protected Windows kernel services/drivers. Prevents accidental system crashes.
+- **🚀 1-Click Gaming Optimization**: Disables non-essential background services automatically during gaming sessions.
+- **📋 Scheduled Tasks & Startup Management**: Advanced scanner with non-destructive, reversible quarantine for background apps.
+- **🛠️ OS Fine-Tuning Tweaks**: High Performance / Ultimate Performance power plans, visual effects reduction, transparency & animation toggles.
+- **💾 Multi-Profile Manager**: Save and switch custom optimization profiles while keeping the `Default` baseline untouched.
+- **⏪ Integrated System Restore Points**: Creates Windows Restore Points before system modifications.
 
 ---
 
-## 👨💻 Guia do Desenvolvedor
+## 🛡️ How It Works (Architecture & Safety)
 
-Se você deseja modificar o código-fonte, adicionar novos recursos ou contribuir para o desenvolvimento do TothBoost, siga as instruções abaixo:
+TothBoost operates under **Safety-First Principles**:
 
-### Pré-requisitos de Desenvolvimento
-- **SDK**: [.NET 10 SDK](https://dotnet.microsoft.com/download) instalado.
-- **IDE**: Visual Studio 2026 / Visual Studio Code (com extensão C# Dev Kit) ou JetBrains Rider.
-- **SO de Desenvolvimento**: Windows 10/11.
+1. **First-Run Baseline Safety Lock**: On first launch, TothBoost automatically creates a Windows Restore Point and saves the `Default` baseline profile containing the exact original state of all services, tasks, startup items, and OS tweaks.
+2. **Knowledge Base Heuristics**: Using `knowledge.json` and rule engines in `TothBoost.Core`, services are categorized into:
+   - 🔴 **Protected**: Critical kernel/driver components (locked against modification).
+   - 🟢 **Recommended for Gaming**: Non-essential services safe to disable for gaming.
+   - 🟡 **Caution / Optional**: Feature-dependent services (e.g. printing, Bluetooth).
+3. **Reversible Quarantine**: Disabled startup items are never deleted; they are moved to TothBoost's isolation subkeys and quarantine directory (`%ProgramData%\TothBoost\Restoration`), allowing 1-click restoration.
 
-### Estrutura do Projeto
+---
+
+## 📥 Installation & Usage (End Users)
+
+No complex installer required. TothBoost is distributed as a single standalone executable (*Single-File Executable*).
+
+1. Visit the **Releases** section on the GitHub repository.
+2. Download the latest **`TothBoost.exe`** file.
+3. Right-click `TothBoost.exe` and select **"Run as Administrator"** (required to manage Windows services and create restore points).
+4. On first launch, TothBoost captures your baseline configuration. You can then apply the **Gaming Profile** or customize tweaks.
+
+---
+
+## 💻 System Requirements & Dependencies
+
+### End Users:
+- **Operating System**: Windows 10 (64-bit) or Windows 11 (64-bit).
+- **Privileges**: Administrator Rights.
+- **Dependencies**: **NONE**. The executable is 100% self-contained, with all libraries and .NET 10 runtime embedded inside `TothBoost.exe`.
+
+---
+
+## 👨💻 Developer Guide
+
+If you wish to build, modify, or contribute to TothBoost:
+
+### Prerequisites
+- **SDK**: [.NET 10 SDK](https://dotnet.microsoft.com/download) installed.
+- **IDE**: Visual Studio 2026 / Visual Studio Code (with C# Dev Kit extension) or JetBrains Rider.
+- **Development OS**: Windows 10/11.
+
+### Project Structure
 
 ```text
 TothBoost/
 ├── src/
-│   ├── TothBoost.Core/         # Biblioteca base (Scanners, KnowledgeBase, Engine, Snapshots)
-│   └── TothBoost.App/          # Interface WPF (.NET 10, XAML, ViewModels, Themes DWM)
+│   ├── TothBoost.Core/         # Core Library (Scanners, KnowledgeBase, Engine, Snapshots)
+│   └── TothBoost.App/          # WPF UI (.NET 10, XAML, ViewModels, DWM Themes)
 ├── tests/
-│   └── TothBoost.Core.Tests/   # Testes unitários com xUnit
+│   └── TothBoost.Core.Tests/   # Automated Unit Tests (xUnit)
 ├── .github/workflows/
-│   └── ci-cd.yml               # Pipeline automatizada no GitHub Actions
-├── publish/                    # Saída de binários publicados
-└── TothBoost.slnx              # Solução do projeto (.NET 10 Solution Format)
+│   └── ci-cd.yml               # GitHub Actions CI/CD Pipeline
+├── publish/                    # Published Output Binaries
+└── TothBoost.slnx              # .NET 10 Solution Format
 ```
 
-### Comandos Principais (Build & Testes)
+### Build & Testing Commands
 
-Abra o terminal na raiz do repositório:
+Open terminal in repository root:
 
-1. **Restaurar Dependências**:
+1. **Restore Dependencies**:
    ```bash
    dotnet restore
    ```
 
-2. **Compilar a Solução**:
+2. **Build Solution**:
    ```bash
    dotnet build
    ```
 
-3. **Executar a Aplicação localmente**:
+3. **Run Application locally**:
    ```bash
    dotnet run --project src/TothBoost.App/TothBoost.App.csproj
    ```
 
-4. **Executar a Suíte de Testes Automated (xUnit)**:
+4. **Execute Automated Unit Tests**:
    ```bash
    dotnet test
    ```
 
-5. **Gerar Executável Standalone de Release (`TothBoost.exe`)**:
+5. **Publish Standalone Single-File Executable (`TothBoost.exe`)**:
    ```bash
    dotnet publish src/TothBoost.App/TothBoost.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish/
    ```
 
-### Adicionando Novos Ajustes ou Regras de Serviços
+### Adding New Tweaks or Service Rules
 
-- **Para adicionar um novo ajuste de sistema (Tweak)**:
-  1. Adicione a chave correspondente no `TweakKind` em `TothBoost.Core/Models/Models.cs`.
-  2. Defina a metadata e descrição do ajuste no `TweakCatalog.cs`.
-  3. Implemente a lógica de verificação (`IsApplied`), aplicação (`Apply`) e reversão (`Revert`) no `TweakManager.cs`.
-- **Para atualizar regras de classificação de serviços**:
-  1. Modifique o arquivo `src/TothBoost.Core/Known/knowledge.json` informando o nome do serviço, categoria, nível de risco (`recommended`, `protected`, `warn`, `optional`) e justificativa.
-
----
-
-## 🔄 Pipeline de CI/CD
-
-O repositório possui integração contínua e entrega contínua ativas via **GitHub Actions** (`.github/workflows/ci-cd.yml`):
-- A cada *Push* ou *Pull Request* na branch `main`, os testes unitários são executados e o binário `TothBoost.exe` é compilado e disponibilizado como artefato de build.
-- Ao publicar uma tag de versão (ex: `v1.0.0`), o GitHub Actions cria automaticamente uma **Release no GitHub** anexando o arquivo executável para download direto dos usuários.
+- **Adding a new OS Tweak**:
+  1. Add key enum entry to `TweakKind` in `TothBoost.Core/Models/Models.cs`.
+  2. Define metadata and description in `TweakCatalog.cs`.
+  3. Implement detection (`IsApplied`), application (`Apply`), and reversal (`Revert`) logic in `TweakManager.cs`.
+- **Updating Service Safety Rules**:
+  1. Modify `src/TothBoost.Core/Known/knowledge.json` specifying service name, category, risk level (`recommended`, `protected`, `warn`, `optional`), and explanation.
 
 ---
 
-## 📜 Licença
+## 🔄 CI/CD Pipeline
 
-Desenvolvido por Gabriel Toth. Todos os direitos reservados.
+The repository features active continuous integration and continuous delivery via **GitHub Actions** (`.github/workflows/ci-cd.yml`):
+- On every *Push* or *Pull Request* to `main`, unit tests execute and `TothBoost.exe` is compiled as a build artifact.
+- Pushing a release tag (e.g. `v1.0.0`) automatically publishes a **GitHub Release** with `TothBoost.exe` attached.
+
+---
+
+## 📜 License
+
+Developed by Gabriel Toth. All rights reserved.

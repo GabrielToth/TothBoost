@@ -5,15 +5,14 @@ using TothBoost.Core.Utilities;
 namespace TothBoost.Core.Snapshot
 {
     /// <summary>
-    /// Cria o ponto de restauração OBRIGATÓRIO do Windows na primeira execução
-    /// do TothBoost, antes de qualquer varredura ou modificação, e controla o
-    /// marcador de "primeiro uso concluído".
+    /// Creates mandatory Windows System Restore Point on TothBoost first launch
+    /// before any modification, and tracks first-run completion flag.
     /// </summary>
     public static class RestorePointService
     {
         private static string MarkerKey => @"SOFTWARE\TothBoost";
 
-        /// <summary>Verdadeiro se o primeiro uso já foi concluído (ponto + perfil inicial).</summary>
+        /// <summary>True if initial setup (restore point + default baseline profile) has been completed.</summary>
         public static bool IsInitialized
         {
             get
@@ -39,102 +38,117 @@ namespace TothBoost.Core.Snapshot
         }
 
         /// <summary>
-        /// Cria o ponto de restauração via PowerShell (Checkpoint-Computer com
-        /// fallback para o tipo padrão). Retorna (ok, mensagem).
+        /// Creates System Restore Point via PowerShell Checkpoint-Computer.
         /// </summary>
         public static (bool Ok, string Message) CreateInitialPoint()
         {
             try
             {
                 if (IsInitialized)
-                    return (true, "Primeiro uso já concluído nesta máquina.");
+                    return (true, "First run already completed on this computer.");
 
                 var ps = @"$ErrorActionPreference='Continue';" +
                          "try { Enable-ComputerRestore -Drive 'C:\' -ErrorAction SilentlyContinue | Out-Null } catch { };" +
-                         "try { Checkpoint-Computer -Description '" + Description + "' -RestorePointType 'APPLICATION_INSTALL' -ErrorAction Stop; 'TB_OK' } " +
-                         "catch { try { Checkpoint-Computer -Description '" + Description + "' -ErrorAction Stop; 'TB_OK' } " +
-                         "catch { 'TB_FAIL:' + $_.Exception.Message } }";
+                         "try { Checkpoint-Computer -Description 'TothBoost - Initial Baseline' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop; 'OK' } catch { 'FAIL: ' + $_.Exception.Message }";
 
-                var (exit, output) = Proc.Run("powershell.exe",
-                    "-NoProfile -ExecutionPolicy Bypass -Command \"& { " + ps + " }\"", 240000);
+                var (exit, outStr) = Proc.Run("powershell", "-NoProfile -ExecutionPolicy Bypass -Command \"" + ps + "\"");
+                if (outStr.Contains("OK"))
+                    return (true, "System Restore Point 'TothBoost - Initial Baseline' created successfully.");
 
-                if (exit != 0)
-                    return (false, "PowerShell falhou (código " + exit + "): " + output.Trim());
-
-                if (output.Contains("TB_OK"))
-                    return (true, "Ponto de restauração criado com sucesso.");
-
-                var firstLine = output.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.StartsWith("TB_FAIL:"))
-                                ?? output.Trim();
-                if (firstLine.Length > 400) firstLine = firstLine[..400];
-                return (false, "Não foi possível criar o ponto de restauração (" + firstLine +
-                                "). Verifique se a Proteção do Sistema está ativada.");
+                var msg = string.IsNullOrWhiteSpace(outStr) ? "PowerShell did not return output." : outStr.Trim();
+                return (false, "Could not create restore point automatically: " + msg);
             }
             catch (Exception ex)
             {
-                return (false, "Falha ao criar ponto de restauração: " + ex.Message);
+                return (false, "Error creating restore point: " + ex.Message);
             }
         }
 
-        private static string Description => "TothBoost - ponto de seguranca inicial";
-
-        /// <summary>Lista todos os pontos de restauração do Windows com data/hora exata.</summary>
-        public static List<RestorePointInfo> ListPoints()
+        /// <summary>Creates a manual System Restore Point with custom description.</summary>
+        public static (bool Ok, string Message) CreatePoint(string description)
         {
-            var list = new List<RestorePointInfo>();
             try
             {
-                var ps = "$ErrorActionPreference='SilentlyContinue';" +
-                         "$pts = @(Get-WmiObject -Class SystemRestore | Sort-Object CreationTime);" +
-                         "$pts | ForEach-Object { Write-Output ('TB_PT|' + $_.SequenceNumber + '|' + $_.CreationTime.ToString('o') + '|' + $_.Description) }";
-                var (exit, output) = Proc.Run("powershell.exe",
-                    "-NoProfile -ExecutionPolicy Bypass -Command \"& { " + ps + " }\"", 60000);
-                if (exit != 0) return list;
+                var desc = string.IsNullOrWhiteSpace(description) ? "TothBoost - Safety Point" : "TothBoost - " + description.Trim();
+                var ps = @"$ErrorActionPreference='Continue';" +
+                         "try { Enable-ComputerRestore -Drive 'C:\' -ErrorAction SilentlyContinue | Out-Null } catch { };" +
+                         "try { Checkpoint-Computer -Description '" + desc.Replace("'", "''") + "' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop; 'OK' } catch { 'FAIL: ' + $_.Exception.Message }";
 
-                foreach (var line in output.Split('\n'))
+                var (exit, outStr) = Proc.Run("powershell", "-NoProfile -ExecutionPolicy Bypass -Command \"" + ps + "\"");
+                if (outStr.Contains("OK"))
+                    return (true, $"System Restore Point '{desc}' created successfully.");
+
+                var msg = string.IsNullOrWhiteSpace(outStr) ? "PowerShell did not return output." : outStr.Trim();
+                return (false, "Could not create restore point: " + msg);
+            }
+            catch (Exception ex)
+            {
+                return (false, "Error creating restore point: " + ex.Message);
+            }
+        }
+
+        public sealed class RestorePointItem
+        {
+            public long SequenceNumber { get; set; }
+            public string Description { get; set; } = "";
+            public string EventType { get; set; } = "";
+            public string RestorePointType { get; set; } = "";
+            public string CreationTime { get; set; } = "";
+        }
+
+        public static List<RestorePointItem> ListPoints()
+        {
+            var list = new List<RestorePointItem>();
+            try
+            {
+                var ps = "Get-ComputerRestorePoint | Select-Object SequenceNumber, Description, EventType, RestorePointType, CreationTime | ConvertTo-Json -Compress";
+                var (exit, outStr) = Proc.Run("powershell", "-NoProfile -ExecutionPolicy Bypass -Command \"" + ps + "\"");
+                if (exit != 0 || string.IsNullOrWhiteSpace(outStr)) return list;
+
+                var trimmed = outStr.Trim();
+                if (trimmed.StartsWith("["))
                 {
-                    var l = line.Trim();
-                    if (!l.StartsWith("TB_PT|")) continue;
-                    var parts = l.Split('|');
-                    if (parts.Length < 3) continue;
-                    if (long.TryParse(parts[1], out var seq) &&
-                        DateTime.TryParse(parts[2], null, System.Globalization.DateTimeStyles.RoundtripKind, out var when))
-                    {
-                        var descParts = parts.Skip(3).ToArray();
-                        list.Add(new RestorePointInfo
-                        {
-                            Sequence = seq,
-                            When = when,
-                            Description = descParts.Length > 0 && !string.IsNullOrWhiteSpace(descParts[0])
-                                ? string.Join("|", descParts) : null
-                        });
-                    }
+                    var items = System.Text.Json.JsonSerializer.Deserialize<List<RestorePointItem>>(trimmed);
+                    if (items != null) list.AddRange(items);
+                }
+                else if (trimmed.StartsWith("{"))
+                {
+                    var item = System.Text.Json.JsonSerializer.Deserialize<RestorePointItem>(trimmed);
+                    if (item != null) list.Add(item);
                 }
             }
             catch { }
-            return list;
+            return list.OrderByDescending(p => p.SequenceNumber).ToList();
         }
 
-        /// <summary>Exclui UM ponto de restauração específico via WMI. Por conta e risco do usuário.</summary>
-        public static (bool Ok, string Message) DeletePoint(long sequence)
+        public static (bool Ok, string Message) RestoreToPoint(long sequenceNumber)
         {
             try
             {
-                var ps = "$ErrorActionPreference='Stop';" +
-                         "try { $cl = [wmiclass]'Root\\Default:SystemRestore'; $r = $cl.DeleteRestorePoint(" + sequence + "); 'TB_R:' + $r.ReturnValue }" +
-                         "catch { 'TB_FAIL:' + $_.Exception.Message }";
-                var (exit, output) = Proc.Run("powershell.exe",
-                    "-NoProfile -ExecutionPolicy Bypass -Command \"& { " + ps + " }\"", 60000);
-                if (exit != 0)
-                    return (false, "PowerShell falhou (código " + exit + "): " + output.Trim());
-                if (output.Contains("TB_R:0"))
-                    return (true, "Ponto de restauração excluído.");
-                var fail = output.Split('\n').FirstOrDefault(l => l.StartsWith("TB_FAIL:"))?.Trim();
-                return (false, fail ?? "A exclusão foi recusada pelo Windows.");
+                var ps = $"Restore-Computer -RestorePoint {sequenceNumber} -Confirm:$false";
+                var (exit, outStr) = Proc.Run("powershell", "-NoProfile -ExecutionPolicy Bypass -Command \"" + ps + "\"");
+                if (exit == 0)
+                    return (true, $"System restoration to point #{sequenceNumber} initiated. Computer will restart.");
+
+                return (false, "Could not initiate restoration: " + outStr.Trim());
             }
             catch (Exception ex)
             {
-                return (false, "Falha ao excluir: " + ex.Message);
+                return (false, "Error restoring system: " + ex.Message);
+            }
+        }
+
+        public static (bool Ok, string Message) DeletePoint(long sequenceNumber)
+        {
+            try
+            {
+                var ps = $"Get-WmiObject -Class SystemRestore | Where-Object {{ $_.SequenceNumber -eq {sequenceNumber} }} | ForEach-Object {{ $_.Delete() }}";
+                var (exit, outStr) = Proc.Run("powershell", "-NoProfile -ExecutionPolicy Bypass -Command \"" + ps + "\"");
+                return (true, $"Restore point #{sequenceNumber} deleted successfully.");
+            }
+            catch (Exception ex)
+            {
+                return (false, "Error deleting restore point: " + ex.Message);
             }
         }
     }

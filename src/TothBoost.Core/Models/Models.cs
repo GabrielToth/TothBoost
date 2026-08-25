@@ -12,15 +12,15 @@ namespace TothBoost.Core.Models
 
     public enum RiskLevel
     {
-        /// <summary>Não tocar: desativar pode quebrar o Windows ou causar BSOD.</summary>
+        /// <summary>Do not touch: disabling can crash Windows or cause BSOD.</summary>
         Protected = 0,
-        /// <summary>Pode afetar funcionalidades do sistema/segurança. Só desativar com conhecimento.</summary>
+        /// <summary>Can affect system or security features. Disable only with caution.</summary>
         Warning = 1,
-        /// <summary>Seguro de desativar para desempenho em jogos.</summary>
+        /// <summary>Safe to disable for gaming performance.</summary>
         Recommended = 2,
-        /// <summary>Seguro de desativar apenas se o recurso não for usado (impressora, Bluetooth etc.).</summary>
+        /// <summary>Safe to disable if feature is not used (printers, Bluetooth, etc.).</summary>
         Optional = 3,
-        /// <summary>Outro. Sem impacto relevante.</summary>
+        /// <summary>Other. No significant impact.</summary>
         Info = 4
     }
 
@@ -28,11 +28,11 @@ namespace TothBoost.Core.Models
     {
         public static string Label(RiskLevel r) => r switch
         {
-            RiskLevel.Protected => "CRÍTICO — não tocar",
-            RiskLevel.Warning => "Cautela",
-            RiskLevel.Recommended => "Recomendado p/ jogos",
-            RiskLevel.Optional => "Opcional",
-            _ => "Sem classificação"
+            RiskLevel.Protected => "CRITICAL — Protected",
+            RiskLevel.Warning => "Caution",
+            RiskLevel.Recommended => "Recommended for Gaming",
+            RiskLevel.Optional => "Optional",
+            _ => "Unclassified"
         };
     }
 
@@ -46,23 +46,23 @@ namespace TothBoost.Core.Models
         public ServiceStartKind StartKind { get; init; }
         public ServiceStartKind? ConfiguredStart { get; set; }
         public bool IsDriver => TypeKind != ServiceTypeKind.OwnProcess && TypeKind != ServiceTypeKind.ShareProcess;
-        public string? RunningState { get; init; }   // "4 Running", "1 Stopped", "" (drivers)
+        public string? RunningState { get; init; }   // "Running", "Stopped", "" (drivers)
         public RiskLevel Risk { get; set; }
         public string RiskReason { get; set; } = "";
         public string Category { get; set; } = "";
         public string Group { get; init; } = "";
-        public bool IsProtected => Risk == RiskLevel.Protected;
-        public bool IsProtectedDriver => IsDriverProtected;
-        public bool IsDriverProtected => IsDriverProtectedType;
-        public bool IsDriverProtectedType { get; init; }
+        public bool IsDriverProtectedType => IsDriver;
+
+        public bool IsProtected => Risk == RiskLevel.Protected || IsDriver;
+
         public string StartKindLabel => StartKind switch
         {
-            ServiceStartKind.Boot => "Inicialização (boot)",
-            ServiceStartKind.System => "Sistema",
-            ServiceStartKind.Automatic => "Automático",
+            ServiceStartKind.Boot => "Boot Start",
+            ServiceStartKind.System => "System Start",
+            ServiceStartKind.Automatic => "Automatic",
             ServiceStartKind.Manual => "Manual",
-            ServiceStartKind.Disabled => "Desabilitado",
-            _ => "?"
+            ServiceStartKind.Disabled => "Disabled",
+            _ => "Unknown"
         };
     }
 
@@ -79,13 +79,13 @@ namespace TothBoost.Core.Models
         public bool Protected { get; set; }
         public string? ProtectReason { get; set; }
         public bool IsService { get; init; }
-        /// <summary>Percentual de CPU (100% = 1 núcleo). &lt;0 = indisponível.</summary>
+        /// <summary>CPU percentage (0-100%). &lt;0 = unavailable.</summary>
         public double CpuPercent { get; set; } = -1;
-        /// <summary>Percentual de utilização da GPU. &lt;0 = indisponível.</summary>
+        /// <summary>GPU utilization percentage. &lt;0 = unavailable.</summary>
         public double GpuPercent { get; set; } = -1;
-        /// <summary>Leitura de disco em KB/s. &lt;0 = indisponível.</summary>
+        /// <summary>Disk read rate in KB/s. &lt;0 = unavailable.</summary>
         public double IoReadKbs { get; set; } = -1;
-        /// <summary>Gravação de disco em KB/s. &lt;0 = indisponível.</summary>
+        /// <summary>Disk write rate in KB/s. &lt;0 = unavailable.</summary>
         public double IoWriteKbs { get; set; } = -1;
     }
 
@@ -101,9 +101,9 @@ namespace TothBoost.Core.Models
     public class StartupItem
     {
         public required string Name { get; init; }
-        public required string Location { get; init; }      // legível (Ex.: HKCU\...\Run / Pasta Inicialização)
-        public string? LocationKey { get; init; }           // chave de registro, se aplicável
-        public string? Command { get; init; }               // comando (registro) ou caminho (arquivo)
+        public required string Location { get; init; }      // Readable (e.g. HKCU\...\Run / Startup Folder)
+        public string? LocationKey { get; init; }           // Registry key, if applicable
+        public string? Command { get; init; }               // Command (registry) or path (file)
         public bool IsFolder { get; init; }
         public bool Existing { get; set; } = true;
         public bool DisabledByTothBoost { get; set; }
@@ -114,7 +114,7 @@ namespace TothBoost.Core.Models
         public required string Id { get; init; }
         public required string Name { get; init; }
         public required string Description { get; init; }
-        public string Category { get; init; } = "Geral";
+        public string Category { get; init; } = "General";
         public bool Applies { get; set; }
         public bool IsApplied { get; set; }
         public string? ValueText { get; set; }
@@ -123,39 +123,27 @@ namespace TothBoost.Core.Models
     public class SnapshotItem
     {
         public required string Name { get; init; }
+        public required string Category { get; init; }
+        public string OriginalState { get; init; } = "";
+        public string CurrentState { get; init; } = "";
+        public bool CanRestore { get; init; } = true;
         public DateTime CreatedUtc { get; init; }
         public string? HostName { get; init; }
         public bool IsBaseline { get; init; }
         public long FileSize { get; init; }
     }
 
-    public class RestorePointInfo
+    public enum TweakKind
     {
-        public long Sequence { get; init; }
-        public DateTime When { get; init; }
-        public string? Description { get; init; }
-    }
-
-    public class ActionReport
-    {
-        public List<ActionLine> Lines { get; } = new();
-        public int Succeeded => Lines.Count(l => l.Success);
-        public int Failed => Lines.Count(l => !l.Success);
-        public void Add(string item, string action, bool ok, string? detail = null) =>
-            Lines.Add(new ActionLine(item, action, ok, detail));
-        public void AddError(string item, string action, Exception ex) =>
-            Lines.Add(new ActionLine(item, action, false, ex.Message.Split('\n')[0].Trim()));
-    }
-
-    public class ActionLine
-    {
-        public ActionLine(string item, string action, bool success, string? detail)
-        {
-            Item = item; Action = action; Success = success; Detail = detail ?? "";
-        }
-        public string Item { get; }
-        public string Action { get; }
-        public bool Success { get; }
-        public string Detail { get; }
+        GameDvr,
+        VisualEffects,
+        Telemetry,
+        Hibernate,
+        UltimatePower,
+        HighPerformance,
+        BlackWallpaper,
+        Transparency,
+        Animations,
+        Thumbnails
     }
 }

@@ -6,7 +6,7 @@ using TothBoost.Core.Snapshot;
 
 namespace TothBoost.App
 {
-    /// <summary>Linha observável para grids (checkboxes de seleção múltipla).</summary>
+    /// <summary>Observable row base class for data grids with checkbox selection.</summary>
     public abstract class RowBase : INotifyPropertyChanged
     {
         private bool _checked;
@@ -37,9 +37,9 @@ namespace TothBoost.App
         public bool IsProtected => S.IsProtected;
         public bool CanTouch => !S.IsProtected;
         public bool IsDriver => S.IsDriver;
-        /// <summary>Ligado = habilitado (inicialização automática); desligado = desabilitado.</summary>
+        /// <summary>On = enabled (automatic startup); Off = disabled.</summary>
         public bool IsOn => S.StartKind != ServiceStartKind.Disabled;
-        public string ToggleTip => CanTouch ? (IsOn ? "Desabilitar este serviço" : "Habilitar este serviço") : "Protegido pelo sistema";
+        public string ToggleTip => CanTouch ? (IsOn ? "Disable this service" : "Enable this service") : "Protected by system";
     }
 
     public class ProcRow : RowBase
@@ -52,8 +52,8 @@ namespace TothBoost.App
         public string Session => P.SessionName;
         public string Path => P.Path ?? "—";
         public bool IsProtected => P.Protected;
-        public string ProtectReason => P.Protected ? "Processo crítico do Windows — não pode ser encerrado." : "";
-        public string ProtectionLabel => P.Protected ? "PROTEGIDO" : "Livre";
+        public string ProtectReason => P.Protected ? "Critical Windows process — cannot be terminated." : "";
+        public string ProtectionLabel => P.Protected ? "PROTECTED" : "Allowed";
         public Brush ProtectionColor => P.Protected ? Green : Dim;
 
         private static readonly Brush Green = new SolidColorBrush(Color.FromRgb(0x4A, 0xE0, 0x80));
@@ -99,22 +99,22 @@ namespace TothBoost.App
         public TaskRow(ScheduledTaskInfo t) => T = t;
         public string Name => T.Name;
         public string FullPath => T.FullPath;
-        public string State => T.Enabled ? "Habilitada" : "Desabilitada";
-        public bool Enabled => T.Enabled;
-        public string Author => T.Author ?? "—";
+        public string StateLabel => T.Enabled ? "Enabled" : "Disabled";
+        public string Author => string.IsNullOrEmpty(T.Author) ? "—" : T.Author;
         public bool IsOn => T.Enabled;
+        public string ToggleTip => IsOn ? "Disable this task" : "Enable this task";
     }
 
     public class StartupRow : RowBase
     {
-        public StartupItem I { get; }
-        public StartupRow(StartupItem i) => I = i;
-        public string Name => I.Name;
-        public string Location => I.Location;
-        public string Command => I.Command ?? "";
-        public string State => I.DisabledByTothBoost ? "Desabilitada (TothBoost)" : "Habilitada";
-        public bool IsDisabledByTb => I.DisabledByTothBoost;
-        public bool IsOn => !I.DisabledByTothBoost;
+        public StartupItem Item { get; }
+        public StartupRow(StartupItem item) => Item = item;
+        public string Name => Item.Name;
+        public string Location => Item.Location;
+        public string Command => Item.Command ?? "—";
+        public string StatusLabel => Item.DisabledByTothBoost ? "Disabled (Quarantine)" : "Active";
+        public bool IsOn => !Item.DisabledByTothBoost;
+        public string ToggleTip => IsOn ? "Disable (move to quarantine)" : "Enable (restore from quarantine)";
     }
 
     public class TweakRow : RowBase
@@ -124,32 +124,28 @@ namespace TothBoost.App
         public string Name => T.Name;
         public string Description => T.Description;
         public string Category => T.Category;
-        public string State => T.IsApplied ? "Aplicado" : "Não aplicado";
-        public bool IsApplied => T.IsApplied;
+        public string State => T.IsApplied ? "Applied" : "Default";
     }
 
     public class ProfileCard
     {
-        public ProfileService.ProfileMeta M { get; }
-        public ProfileCard(ProfileService.ProfileMeta m, bool isCurrent) { M = m; IsCurrent = isCurrent; }
-        public string Name => M.Name ?? "?";
-        public bool IsDefault => M.IsDefault;
-        public string KindLabel => IsDefault ? "PADRÃO — save total (estado original)" : "Perfil criado pelo usuário";
-        public string HostName => M.HostName ?? "";
-        public string CreatedText => "Criado em " + M.CreatedUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
-        public string LastSavedText => M.LastSavedUtc is DateTime d
-            ? "Salvo em " + d.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
-            : "Nunca salvo";
-        public bool IsCurrent { get; }
-        public string Initials => string.IsNullOrEmpty(Name) ? "?" : Name[..1].ToUpperInvariant();
-    }
+        public ProfileService.ProfileMeta Meta { get; }
+        public bool IsSelected { get; }
 
-    public class RestorePointRow
-    {
-        public RestorePointInfo P { get; }
-        public RestorePointRow(RestorePointInfo p) => P = p;
-        public long Seq => P.Sequence;
-        public string Description => string.IsNullOrEmpty(P.Description) ? "Ponto de restauração" : P.Description;
-        public string WhenText => P.When.ToString("dd/MM/yyyy HH:mm:ss");
+        public ProfileCard(ProfileService.ProfileMeta meta, bool isSelected)
+        {
+            Meta = meta;
+            IsSelected = isSelected;
+        }
+
+        public string Name => Meta.Name ?? "Default";
+        public bool IsDefault => Meta.IsDefault;
+        public string CreatedLabel => "Created: " + Meta.CreatedUtc.ToLocalTime().ToString("g");
+        public string SavedLabel => Meta.LastSavedUtc.HasValue
+            ? "Last saved: " + Meta.LastSavedUtc.Value.ToLocalTime().ToString("g")
+            : "No custom save recorded";
+        public string Subtitle => IsDefault
+            ? "Full original baseline reference"
+            : (IsSelected ? "Active profile" : "Saved user profile");
     }
 }

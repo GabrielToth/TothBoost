@@ -7,8 +7,6 @@ using TothBoost.Core.Utilities;
 
 namespace TothBoost.Core.Snapshot
 {
-    // ---------- Modelos do documento de snapshot ----------
-
     public class ServiceSnapshot
     {
         public string Name { get; set; } = "";
@@ -52,9 +50,8 @@ namespace TothBoost.Core.Snapshot
     }
 
     /// <summary>
-    /// Guarda o estado original do sistema ANTES de qualquer modificação e
-    /// permite restaurar tudo (serviços, tarefas agendadas, inicialização e
-    /// ajustes) para o estado 100% original. NADA é excluído permanentemente.
+    /// Preserves original system baseline state BEFORE any modification,
+    /// allowing full restoration of services, scheduled tasks, startup items, and tweaks.
     /// </summary>
     public static class SnapshotService
     {
@@ -65,33 +62,8 @@ namespace TothBoost.Core.Snapshot
 
         public static bool BaselineExists => File.Exists(Path.Combine(Root, "baseline.json"));
 
-        public static List<SnapshotItem> List()
-        {
-            var items = new List<SnapshotItem>();
-            if (!Directory.Exists(Root)) return items;
-            foreach (var f in Directory.EnumerateFiles(Root, "*.json"))
-            {
-                try
-                {
-                    var fi = new FileInfo(f);
-                    var doc = JsonSerializer.Deserialize<SnapshotDocument>(File.ReadAllText(f));
-                    items.Add(new SnapshotItem
-                    {
-                        Name = doc?.Name ?? Path.GetFileNameWithoutExtension(f),
-                        CreatedUtc = doc?.CreatedUtc ?? fi.LastWriteTimeUtc,
-                        HostName = doc?.HostName,
-                        IsBaseline = string.Equals(doc?.Name, "baseline", StringComparison.OrdinalIgnoreCase),
-                        FileSize = fi.Length
-                    });
-                }
-                catch { }
-            }
-            return items.OrderByDescending(i => i.CreatedUtc).ToList();
-        }
-
         /// <summary>
-        /// Cria a linha de base (estado original) — só é criada uma vez e NUNCA
-        /// sobrescreve o que já existe.
+        /// Creates original baseline state once — never overwrites existing baseline.
         /// </summary>
         public static bool EnsureBaseline(IEnumerable<ServiceInfo> services,
             IEnumerable<ScheduledTaskInfo> tasks, IEnumerable<StartupItem> startups)
@@ -105,230 +77,147 @@ namespace TothBoost.Core.Snapshot
             IEnumerable<ScheduledTaskInfo> tasks, IEnumerable<StartupItem> startups)
         {
             Directory.CreateDirectory(Root);
+            var path = Path.Combine(Root, name + ".json");
+            if (File.Exists(path) && string.Equals(name, "baseline", StringComparison.OrdinalIgnoreCase)) return;
+
             var doc = new SnapshotDocument
             {
                 Name = name,
                 CreatedUtc = DateTime.UtcNow,
                 HostName = Environment.MachineName,
-                WindowsVersion = $"{Environment.OSVersion.VersionString} ({Environment.Is64BitOperatingSystem})",
+                WindowsVersion = Environment.OSVersion.VersionString,
                 Services = services.Select(s => new ServiceSnapshot
                 {
                     Name = s.Name,
                     StartKind = (int)s.StartKind,
-                    WasRunning = s.RunningState == "Executando"
+                    WasRunning = s.RunningState == "Running"
                 }).ToList(),
-                Tasks = tasks.Select(t => new TaskSnapshot { Name = t.Name, FullPath = t.FullPath, Enabled = t.Enabled }).ToList(),
-                Startups = startups.Where(x => !x.IsFolder && !string.IsNullOrEmpty(x.LocationKey))
-                    .Select(s => new StartupSnapshot
-                    {
-                        Hive = IsLm(s.LocationKey!) ? "LM" : "CU",
-                        KeyPath = s.LocationKey!,
-                        ValueName = s.Name,
-                        Value = s.Command ?? ""
-                    }).ToList(),
-                StartupFiles = startups.Where(x => x.IsFolder && !string.IsNullOrEmpty(x.Command))
-                    .Select(s => new StartupFileSnapshot { Name = s.Name, FilePath = s.Command! }).ToList()
+                Tasks = tasks.Select(t => new TaskSnapshot
+                {
+                    Name = t.Name,
+                    FullPath = t.FullPath,
+                    Enabled = t.Enabled
+                }).ToList(),
+                Startups = startups.Where(s => !s.IsFolder && !string.IsNullOrEmpty(s.LocationKey)).Select(s => new StartupSnapshot
+                {
+                    Hive = s.LocationKey!.StartsWith("SOFTWARE", StringComparison.OrdinalIgnoreCase) ? "LM" : "CU",
+                    KeyPath = s.LocationKey,
+                    ValueName = s.Name,
+                    Value = s.Command ?? ""
+                }).ToList(),
+                StartupFiles = startups.Where(s => s.IsFolder && !string.IsNullOrEmpty(s.Command)).Select(s => new StartupFileSnapshot
+                {
+                    Name = s.Name,
+                    FilePath = s.Command!
+                }).ToList(),
+                AppliedTweaks = TweakCatalog.All().Where(t =>
+                {
+                    if (Enum.TryParse<TweakKind>(t.Id, out var k)) return TweakManager.IsApplied(k);
+                    return false;
+                }).Select(t => t.Id).ToList()
             };
 
-            File.WriteAllText(Path.Combine(Root, Safe(name) + ".json"),
-                JsonSerializer.Serialize(doc, JsonOpts));
+            File.WriteAllText(path, JsonSerializer.Serialize(doc, JsonOpts));
         }
 
-        public static void RecordAppliedTweak(string tweakId)
-        {
-            var path = Path.Combine(Root, "baseline.json");
-            if (!File.Exists(path)) return;
-            try
-            {
-                var doc = JsonSerializer.Deserialize<SnapshotDocument>(File.ReadAllText(path));
-                if (doc is null) return;
-                if (!doc.AppliedTweaks.Contains(tweakId))
-                {
-                    doc.AppliedTweaks.Add(tweakId);
-                    File.WriteAllText(path, JsonSerializer.Serialize(doc, JsonOpts));
-                }
-            }
-            catch { }
-        }
-
-        /// <summary>Revert todos os ajustes registrados no snapshot da linha de base.</summary>
-        public static void RevertAllRecordedTweaks()
-        {
-            var path = Path.Combine(Root, "baseline.json");
-            if (!File.Exists(path)) return;
-            try
-            {
-                var doc = JsonSerializer.Deserialize<SnapshotDocument>(File.ReadAllText(path));
-                if (doc is null) return;
-                foreach (var t in doc.AppliedTweaks)
-                {
-                    if (Enum.TryParse<TweakKind>(t, out var kind) && TweakManager.IsApplied(kind))
-                        TweakManager.Revert(kind);
-                }
-                doc.AppliedTweaks.Clear();
-                File.WriteAllText(path, JsonSerializer.Serialize(doc, JsonOpts));
-            }
-            catch { }
-        }
-
-        // ---------- Restauração ----------
-
-        public static ActionReport Restore(string name)
+        public static ActionReport Restore(string snapshotName,
+            IEnumerable<ServiceInfo> currentServices,
+            IEnumerable<ScheduledTaskInfo> currentTasks,
+            IEnumerable<StartupItem> currentStartups)
         {
             var report = new ActionReport();
-            var path = Path.Combine(Root, Safe(name) + ".json");
+            var path = Path.Combine(Root, snapshotName + ".json");
             if (!File.Exists(path))
             {
-                report.Add(name, "restauração", false, "Snapshot não encontrado em " + path);
+                report.Add("Snapshot", "restore", false, $"Snapshot '{snapshotName}' not found.");
                 return report;
             }
 
-            SnapshotDocument doc;
-            try { doc = JsonSerializer.Deserialize<SnapshotDocument>(File.ReadAllText(path))!; }
-            catch (Exception ex) { report.Add(name, "ler snapshot", false, ex.Message); return report; }
-
-            foreach (var s in doc.Services) RestoreService(report, s);
-            foreach (var t in doc.Tasks) RestoreTask(report, t);
-            foreach (var st in doc.Startups) RestoreStartup(report, st);
-            foreach (var sf in doc.StartupFiles) RestoreStartupFile(report, sf);
-            foreach (var tw in doc.AppliedTweaks)
+            SnapshotDocument? doc;
+            try { doc = JsonSerializer.Deserialize<SnapshotDocument>(File.ReadAllText(path)); }
+            catch (Exception ex)
             {
+                report.AddError("Snapshot", "read file", ex);
+                return report;
+            }
+            if (doc is null) return report;
+
+            // 1) Services
+            foreach (var s in doc.Services)
+            {
+                var cur = currentServices.FirstOrDefault(x => x.Name.Equals(s.Name, StringComparison.OrdinalIgnoreCase));
+                if (cur is null || cur.IsProtected) continue;
+
+                var origStart = (ServiceStartKind)s.StartKind;
                 try
                 {
-                    if (Enum.TryParse<TweakKind>(tw, out var kind) && TweakManager.IsApplied(kind))
+                    if (cur.StartKind != origStart)
                     {
-                        TweakManager.Revert(kind);
-                        report.Add(tw, "reverter ajuste", true);
+                        ServiceActions.ChangeStartKind(s.Name, origStart);
+                        report.Add(s.Name, $"startup set to {origStart}", true);
+                    }
+                    if (s.WasRunning && cur.RunningState != "Running")
+                    {
+                        ServiceActions.Start(s.Name);
+                        report.Add(s.Name, "started", true);
+                    }
+                    else if (!s.WasRunning && cur.RunningState == "Running")
+                    {
+                        ServiceActions.Stop(s.Name);
+                        report.Add(s.Name, "stopped", true);
                     }
                 }
-                catch (Exception ex) { report.AddError(tw, "reverter ajuste", ex); }
+                catch (Exception ex) { report.AddError(s.Name, "restore service", ex); }
             }
 
-            report.Add("COMANDO", "restauração concluída", true,
-                $"{report.Succeeded} itens OK, {report.Failed} falhas");
+            // 2) Tasks
+            foreach (var t in doc.Tasks)
+            {
+                var cur = currentTasks.FirstOrDefault(x => x.FullPath.Equals(t.FullPath, StringComparison.OrdinalIgnoreCase));
+                if (cur is null) continue;
+                if (cur.Enabled != t.Enabled)
+                {
+                    try
+                    {
+                        TaskScanner.SetEnabled(t.FullPath, t.Enabled);
+                        report.Add(t.Name, t.Enabled ? "enabled" : "disabled", true);
+                    }
+                    catch (Exception ex) { report.AddError(t.Name, "restore task", ex); }
+                }
+            }
+
+            // 3) Startup Items
+            foreach (var st in currentStartups)
+            {
+                var orig = doc.Startups.FirstOrDefault(x => x.ValueName.Equals(st.Name, StringComparison.OrdinalIgnoreCase)) ??
+                           (object?)doc.StartupFiles.FirstOrDefault(x => x.Name.Equals(st.Name, StringComparison.OrdinalIgnoreCase));
+
+                bool shouldDisable = orig == null;
+                if (st.DisabledByTothBoost != shouldDisable)
+                {
+                    try
+                    {
+                        StartupScanner.SetDisabled(st, shouldDisable);
+                        report.Add(st.Name, shouldDisable ? "disabled" : "enabled", true);
+                    }
+                    catch (Exception ex) { report.AddError(st.Name, "restore startup", ex); }
+                }
+            }
+
+            // 4) Tweaks
+            foreach (var tw in TweakCatalog.All())
+            {
+                if (!Enum.TryParse<TweakKind>(tw.Id, out var kind)) continue;
+                bool wasApplied = doc.AppliedTweaks.Contains(tw.Id);
+                bool nowApplied = TweakManager.IsApplied(kind);
+                if (wasApplied != nowApplied)
+                {
+                    var r = wasApplied ? TweakManager.Apply(kind) : TweakManager.Revert(kind);
+                    report.Merge(r);
+                }
+            }
+
             return report;
         }
-
-        private static void RestoreService(ActionReport report, ServiceSnapshot s)
-        {
-            try
-            {
-                var current = CurrentStartKind(s.Name);
-                if (current != (ServiceStartKind)s.StartKind)
-                {
-                    ServiceActions.ChangeStartKind(s.Name, (ServiceStartKind)s.StartKind);
-                    report.Add(s.Name, $"inicialização → {Label((ServiceStartKind)s.StartKind)}", true);
-                }
-                if (s.WasRunning)
-                {
-                    ServiceActions.Start(s.Name);
-                    report.Add(s.Name, "iniciar", true);
-                }
-            }
-            catch (Exception ex) { report.AddError(s.Name, "restaurar serviço", ex); }
-        }
-
-        private static void RestoreTask(ActionReport report, TaskSnapshot t)
-        {
-            try
-            {
-                if (ReadTaskEnabled(t.FullPath) != t.Enabled)
-                {
-                    TaskActions.SetEnabled(t.FullPath, t.Enabled);
-                    report.Add(t.Name, t.Enabled ? "habilitar" : "desabilitar", true);
-                }
-            }
-            catch (Exception ex) { report.AddError(t.Name, "restaurar tarefa", ex); }
-        }
-
-        private static void RestoreStartup(ActionReport report, StartupSnapshot st)
-        {
-            try
-            {
-                var where = st.Hive == "LM" ? Registry.LocalMachine : Registry.CurrentUser;
-                if (StartupScanner.IsQuarantined(where, st.KeyPath, st.ValueName))
-                {
-                    // Devolver valor da quarentena ao local original.
-                    var qKey = where.OpenSubKey(StartupScanner.QuarantineKey(st.KeyPath));
-                    if (qKey is not null)
-                    {
-                        var v = qKey.GetValue(st.ValueName)?.ToString() ?? st.Value;
-                        using var orig = where.CreateSubKey(st.KeyPath, true);
-                        orig.SetValue(st.ValueName, v, RegistryValueKind.String);
-                        qKey.DeleteValue(st.ValueName, false);
-                        report.Add(st.ValueName, "restaurar inicialização", true);
-                    }
-                }
-                else
-                {
-                    using var orig = where.OpenSubKey(st.KeyPath, true);
-                    if (orig?.GetValue(st.ValueName) is null && !string.IsNullOrEmpty(st.Value))
-                    {
-                        orig.SetValue(st.ValueName, st.Value, RegistryValueKind.String);
-                        report.Add(st.ValueName, "regravar inicialização", true);
-                    }
-                }
-            }
-            catch (Exception ex) { report.AddError(st.ValueName, "restaurar inicialização", ex); }
-        }
-
-        private static void RestoreStartupFile(ActionReport report, StartupFileSnapshot sf)
-        {
-            try
-            {
-                var src = Path.Combine(StartupScanner.QuarantineFiles, sf.Name);
-                if (!File.Exists(src)) return;
-                var dir = Path.GetDirectoryName(sf.FilePath);
-                if (string.IsNullOrEmpty(dir)) return;
-                Directory.CreateDirectory(dir);
-                File.Move(src, sf.FilePath, true);
-                report.Add(sf.Name, "restaurar arquivo de inicialização", true);
-            }
-            catch (Exception ex) { report.AddError(sf.Name, "restaurar arquivo", ex); }
-        }
-
-        // ---------- helpers ----------
-
-        private static string Safe(string name)
-        {
-            var invalid = Path.GetInvalidFileNameChars();
-            return new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
-        }
-
-        private static bool IsLm(string key) =>
-            key.StartsWith("SOFTWARE", StringComparison.OrdinalIgnoreCase);
-
-        public static ServiceStartKind? CurrentStartKind(string name)
-        {
-            try
-            {
-                using var k = Registry.LocalMachine.OpenSubKey(RegistryKeys.SvcRoot + "\\" + name, false);
-                if (k is null) return null;
-                var v = k.GetValue("Start");
-                return v is int i && Enum.IsDefined(typeof(ServiceStartKind), i)
-                    ? (ServiceStartKind)i
-                    : (ServiceStartKind?)null;
-            }
-            catch { return null; }
-        }
-
-        public static bool? ReadTaskEnabled(string fullPath)
-        {
-            var (exit, outStr) = Proc.Run("schtasks.exe", $"/Query /TN \"{fullPath}\" /XML");
-            if (exit != 0 || !outStr.Contains("<Enabled>")) return null;
-            var m = System.Text.RegularExpressions.Regex.Match(outStr, "<Enabled>([^<]*)</Enabled>");
-            if (!m.Success) return null;
-            return m.Groups[1].Value == "true";
-        }
-
-        private static string Label(ServiceStartKind k) => k switch
-        {
-            ServiceStartKind.Boot => "inicialização (boot)",
-            ServiceStartKind.System => "sistema",
-            ServiceStartKind.Automatic => "automático",
-            ServiceStartKind.Manual => "manual",
-            ServiceStartKind.Disabled => "desabilitado",
-            _ => "?"
-        };
     }
 }

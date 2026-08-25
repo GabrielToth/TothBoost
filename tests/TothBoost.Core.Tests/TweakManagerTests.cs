@@ -23,10 +23,10 @@ namespace TothBoost.Core.Tests
         public void TweakCatalog_ContainsKnownTweaks()
         {
             var tweaks = TweakCatalog.All();
-            Assert.Contains(tweaks, t => t.Id == "GameMode");
             Assert.Contains(tweaks, t => t.Id == "HighPerformance");
             Assert.Contains(tweaks, t => t.Id == "Transparency");
             Assert.Contains(tweaks, t => t.Id == "Animations");
+            Assert.Contains(tweaks, t => t.Id == "BlackWallpaper");
         }
     }
 }

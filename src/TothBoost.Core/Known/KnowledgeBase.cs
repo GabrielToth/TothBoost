@@ -5,10 +5,9 @@ using TothBoost.Core.Models;
 namespace TothBoost.Core.Known
 {
     /// <summary>
-    /// Base de conhecimento de classificações de serviços, embutida no executável
-    /// (knowledge.json). Classifica cada serviço como Protegido / Cautela /
-    /// Recomendado / Opcional / Informação, além de proteger automaticamente
-    /// todos os drivers do kernel.
+    /// Service classification Knowledge Base embedded in executable (knowledge.json).
+    /// Classifies each service as Protected / Warning / Recommended / Optional / Info,
+    /// and automatically protects all kernel drivers.
     /// </summary>
     public static class KnowledgeBase
     {
@@ -43,28 +42,26 @@ namespace TothBoost.Core.Known
         private static (Func<string, bool>, KbEntry)[] BuildPrefixRules()
         {
             static (Func<string, bool>, KbEntry) Rule(string prefix, string risk, string category, string reason)
-            {
-                var e = new KbEntry(prefix, risk, category, reason);
-                return (n => n.StartsWith(prefix, StringComparison.OrdinalIgnoreCase), e);
-            }
+                => (n => n.StartsWith(prefix, StringComparison.OrdinalIgnoreCase), new KbEntry(prefix, risk, category, reason));
+
             return new[]
             {
-                Rule("BluetoothUserService", "optional", "Bluetooth", "Serviço Bluetooth de usuário. Desative sem dispositivos BT."),
-                Rule("OneSyncSvc", "recommended", "Sincronização", "Sincronização de e-mail/contatos/calendário (sufixo de usuário)."),
-                Rule("PimIndexMaintenanceSvc", "recommended", "Contatos", "Indexação de contatos (sufixo de usuário)."),
-                Rule("vmic", "optional", "Virtualização", "Serviços de integração de convidado Hyper-V. Desative se não usa VMs."),
-                Rule("vmiconsole", "info", "Virtualização", "Console de integração Hyper-V."),
-                Rule("vmginn", "info", "Virtualização", "Integração Hyper-V guest.")
+                Rule("BluetoothUserService", "optional", "Bluetooth", "Bluetooth User Service. Safe to disable if no Bluetooth devices are used."),
+                Rule("OneSyncSvc", "recommended", "Sync", "Email, contact, and calendar sync (per-user suffix)."),
+                Rule("PimIndexMaintenanceSvc", "recommended", "Contacts", "Contact indexing service (per-user suffix)."),
+                Rule("vmic", "optional", "Virtualization", "Hyper-V guest integration service. Safe to disable if not using virtual machines."),
+                Rule("vmiconsole", "info", "Virtualization", "Hyper-V integration console."),
+                Rule("vmginn", "info", "Virtualization", "Hyper-V guest integration.")
             };
         }
 
         public static void Classify(ServiceInfo svc)
         {
-            // Drivers do kernel nunca podem ser tocados.
+            // Kernel drivers can never be modified.
             if (svc.IsDriverProtectedType)
             {
                 svc.Risk = RiskLevel.Protected;
-                svc.RiskReason = "Driver do kernel — desativar pode causar tela azul (BSOD) e impedir o Windows de iniciar.";
+                svc.RiskReason = "Kernel Driver — disabling may cause BSOD and prevent Windows from booting.";
                 svc.Category = "Driver";
                 return;
             }
@@ -72,7 +69,7 @@ namespace TothBoost.Core.Known
             if (Entries.Value.TryGetValue(svc.Name, out var e))
             {
                 svc.Risk = ParseRisk(e.Risk);
-                svc.RiskReason = svc.Risk == RiskLevel.Info ? "Serviço catalogado como informação." : e.Reason;
+                svc.RiskReason = svc.Risk == RiskLevel.Info ? "Cataloged service (Information)." : e.Reason;
                 svc.Category = e.Category;
                 return;
             }
@@ -89,30 +86,17 @@ namespace TothBoost.Core.Known
             }
 
             svc.Risk = RiskLevel.Info;
-            svc.RiskReason = "Serviço não catalogado. Sem classificação de segurança — altere por sua conta e risco.";
-            svc.Category = "Desconhecido";
+            svc.RiskReason = "Uncataloged service. No safety classification — modify at your own risk.";
+            svc.Category = "General";
         }
 
-        public static RiskLevel ParseRisk(string risk) => risk switch
+        private static RiskLevel ParseRisk(string s) => s.ToLowerInvariant() switch
         {
-            "protected" => RiskLevel.Protected,
-            "warn" => RiskLevel.Warning,
-            "recommended" => RiskLevel.Recommended,
-            "optional" => RiskLevel.Optional,
-            "info" => RiskLevel.Info,
+            "protected" or "critico" => RiskLevel.Protected,
+            "warn" or "cautela" => RiskLevel.Warning,
+            "recommended" or "recomendado" => RiskLevel.Recommended,
+            "optional" or "opcional" => RiskLevel.Optional,
             _ => RiskLevel.Info
         };
-
-        /// <summary>Serviços recomendados para o perfil de jogos.</summary>
-        public static IEnumerable<string> GamingPresetNames =>
-            Entries.Value.Values.Where(e => e.Risk == "recommended").Select(e => e.Name).Distinct();
-    }
-
-    public class ServiceEntry
-    {
-        public required string Name { get; init; }
-        public required RiskLevel Risk { get; set; }
-        public string Reason { get; set; } = "";
-        public string Category { get; set; } = "";
     }
 }

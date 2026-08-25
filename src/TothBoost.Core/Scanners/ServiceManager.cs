@@ -6,8 +6,8 @@ using TothBoost.Core.Utilities;
 namespace TothBoost.Core.Scanners
 {
     /// <summary>
-    /// Lista TODOS os serviços e drivers registrados no Windows a partir do registro
-    /// (HKLM\SYSTEM\CurrentControlSet\Services), cruzando com o estado atual
+    /// Scans ALL services and drivers registered in Windows Registry
+    /// (HKLM\SYSTEM\CurrentControlSet\Services), cross-referencing live state
     /// via ServiceController.
     /// </summary>
     public class ServiceScanner
@@ -46,76 +46,55 @@ namespace TothBoost.Core.Scanners
                         StartKind = start,
                         ConfiguredStart = start,
                         RunningState = driverProtected ? null : GetRunningState(name),
-                        Group = group ?? "",
-                        IsDriverProtectedType = driverProtected
+                        Group = group ?? ""
                     };
+
+                    Known.KnowledgeBase.Classify(item);
                     list.Add(item);
                 }
-                catch { /* chave sem permissão de leitura — ignorar */ }
+                catch { }
             }
-            root.Dispose();
             return list;
         }
 
-        private static string? GetRunningState(string name)
+        private static string GetRunningState(string name)
         {
             try
             {
                 using var sc = new ServiceController(name);
-                sc.Refresh();
                 return sc.Status switch
                 {
-                    ServiceControllerStatus.Running => "Executando",
-                    ServiceControllerStatus.Stopped => "Parado",
-                    ServiceControllerStatus.StartPending => "Iniciando...",
-                    ServiceControllerStatus.StopPending => "Parando...",
-                    ServiceControllerStatus.Paused => "Pausado",
-                    ServiceControllerStatus.ContinuePending => "Retomando...",
-                    _ => "Desconhecido"
+                    ServiceControllerStatus.Running => "Running",
+                    ServiceControllerStatus.Stopped => "Stopped",
+                    ServiceControllerStatus.StartPending => "Starting",
+                    ServiceControllerStatus.StopPending => "Stopping",
+                    ServiceControllerStatus.Paused => "Paused",
+                    _ => sc.Status.ToString()
                 };
             }
-            catch { return "—"; }
+            catch
+            {
+                return "Unknown";
+            }
         }
 
-        private static int GetInt(RegistryKey k, string name, int dflt)
-        {
-            try { return (int)(k.GetValue(name, dflt) ?? dflt); }
-            catch { return dflt; }
-        }
-
-        private static string? GetString(RegistryKey k, string name)
-        {
-            try { return k.GetValue(name)?.ToString(); }
-            catch { return null; }
-        }
+        private static int GetInt(RegistryKey k, string name, int def) => k.GetValue(name) is int i ? i : def;
+        private static string? GetString(RegistryKey k, string name) => k.GetValue(name)?.ToString();
     }
 
-    /// <summary>
-    /// Executa operações sobre serviços via sc.exe (config de inicialização) e
-    /// ServiceController (start/stop).
-    /// </summary>
     public static class ServiceActions
     {
         public static void ChangeStartKind(string name, ServiceStartKind kind)
         {
-            var scArg = kind switch
+            var configStr = kind switch
             {
-                ServiceStartKind.Boot => "boot",
-                ServiceStartKind.System => "system",
                 ServiceStartKind.Automatic => "auto",
                 ServiceStartKind.Manual => "demand",
-                _ => "disabled"
+                ServiceStartKind.Disabled => "disabled",
+                _ => throw new ArgumentException("Unsupported startup type.", nameof(kind))
             };
-            var (exit, output) = Proc.Run("sc.exe", $"config \"{name}\" start= {scArg}");
-            if (exit != 0)
-                throw new InvalidOperationException($"sc config falhou (código {exit}): {output}");
-            // Confirma no registro (fonte da verdade do Windows).
-            try
-            {
-                using var k = Registry.LocalMachine.OpenSubKey(RegistryKeys.SvcRoot + "\\" + name, true);
-                k?.SetValue("Start", (int)kind, RegistryValueKind.DWord);
-            }
-            catch { /* sc já aplicou */ }
+            var (exit, outStr) = Proc.Sc("config", name, "start=", configStr);
+            if (exit != 0) throw new InvalidOperationException($"{name}: {outStr.Trim()}");
         }
 
         public static void Stop(string name)
@@ -128,7 +107,7 @@ namespace TothBoost.Core.Scanners
         public static void Start(string name)
         {
             var (exit, outStr) = Proc.Sc("start", name);
-            if (exit != 0 && !outStr.Contains("1056"))
+            if (exit != 0 && !outStr.Contains("1056")) // 1056 = already running
                 throw new InvalidOperationException($"{name}: {outStr.Trim()}");
         }
     }
