@@ -198,6 +198,27 @@ namespace TothBoost.App
 
         // ---------- carregamento ----------
 
+        private void DataGrid_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        {
+            if (sender is not UIElement element) return;
+            var scrollViewer = FindParentScrollViewer(element);
+            if (scrollViewer != null)
+            {
+                scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - e.Delta);
+                e.Handled = true;
+            }
+        }
+
+        private static ScrollViewer? FindParentScrollViewer(DependencyObject child)
+        {
+            var parent = VisualTreeHelper.GetParent(child);
+            while (parent != null && parent is not ScrollViewer)
+            {
+                parent = VisualTreeHelper.GetParent(parent);
+            }
+            return parent as ScrollViewer;
+        }
+
         private async Task RefreshServices()
         {
             var services = await Task.Run(_engine.GetServices);

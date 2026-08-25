@@ -58,7 +58,7 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <TextBlock Text="SEUS PROCESSOS — você pode encerrar ou reiniciar" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,0,0,6"/>
-                            <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" MaxHeight="380" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
+                            <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" MaxHeight="380" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" PreviewMouseWheel="DataGrid_PreviewMouseWheel">
                                 <DataGrid.Columns>
                                     <DataGridTemplateColumn Header="Ações" Width="150">
                                         <DataGridTemplateColumn.CellTemplate>
@@ -107,7 +107,7 @@
                             <Border Background="{StaticResource Bg1}" CornerRadius="8" Padding="10,8" Margin="0,20,0,6">
                                 <TextBlock Text="PROCESSOS DO SISTEMA — PROTEGIDOS (não podem ser encerrados)" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Red}"/>
                             </Border>
-                            <DataGrid x:Name="GridProcSystem" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" MaxHeight="280" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
+                            <DataGrid x:Name="GridProcSystem" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" MaxHeight="280" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" PreviewMouseWheel="DataGrid_PreviewMouseWheel">
                                 <DataGrid.Columns>
                                     <DataGridTemplateColumn Width="36">
                                         <DataGridTemplateColumn.CellTemplate>
