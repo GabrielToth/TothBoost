@@ -1,9 +1,16 @@
+using System.Text.Json;
 using Microsoft.Win32;
 using TothBoost.Core.Models;
 using TothBoost.Core.Utilities;
 
 namespace TothBoost.Core.Scanners
 {
+    public class QuarantineFileMeta
+    {
+        public string Name { get; set; } = "";
+        public string OriginalPath { get; set; } = "";
+        public string Location { get; set; } = "";
+    }
     /// <summary>
     /// Lista a inicialização automática (registro + pastas de inicialização).
     /// Desabilitar NUNCA exclui: valores de registro são movidos para uma
@@ -51,6 +58,8 @@ namespace TothBoost.Core.Scanners
             ScanFolder(items, Environment.GetFolderPath(Environment.SpecialFolder.Startup), "Pasta Inicialização (usuário)");
             ScanFolder(items, Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup), "Pasta Inicialização (comum)");
 
+            ScanQuarantinedFiles(items);
+
             return items.OrderBy(i => i.Name).ToList();
         }
 
@@ -86,9 +95,64 @@ namespace TothBoost.Core.Scanners
             File.Exists(Path.Combine(QuarantineFiles, Path.GetFileName(filePath)));
 
         public static string QuarantineFiles => Path.Combine(QuarantineRoot, "arquivos");
+        public static string QuarantineMetaFile => Path.Combine(QuarantineRoot, "quarantine_files.json");
         public static string QuarantineKey(string key) => RegistryKeys.RunMaxKwT + "\\" + Sanitize(key);
         private static string Sanitize(string key) => key.Replace('\\', '_').Replace('/', '_');
         private static bool IsLm(string key) => key.StartsWith("SOFTWARE", StringComparison.OrdinalIgnoreCase);
+
+        private static List<QuarantineFileMeta> LoadQuarantineFileMetas()
+        {
+            try
+            {
+                if (File.Exists(QuarantineMetaFile))
+                {
+                    var json = File.ReadAllText(QuarantineMetaFile);
+                    return JsonSerializer.Deserialize<List<QuarantineFileMeta>>(json) ?? new List<QuarantineFileMeta>();
+                }
+            }
+            catch { }
+            return new List<QuarantineFileMeta>();
+        }
+
+        private static void SaveQuarantineFileMetas(List<QuarantineFileMeta> list)
+        {
+            try
+            {
+                Directory.CreateDirectory(QuarantineRoot);
+                var json = JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(QuarantineMetaFile, json);
+            }
+            catch { }
+        }
+
+        private static void ScanQuarantinedFiles(List<StartupItem> items)
+        {
+            if (!Directory.Exists(QuarantineFiles)) return;
+            var metas = LoadQuarantineFileMetas();
+
+            foreach (var f in Directory.EnumerateFiles(QuarantineFiles))
+            {
+                var fileName = Path.GetFileName(f);
+                if (fileName.Equals("quarantine_files.json", StringComparison.OrdinalIgnoreCase)) continue;
+
+                var meta = metas.FirstOrDefault(m => string.Equals(m.Name, fileName, StringComparison.OrdinalIgnoreCase));
+                var origPath = meta?.OriginalPath ?? f;
+                var location = meta?.Location ?? "Pasta Inicialização (quarentena)";
+
+                if (!items.Any(i => string.Equals(i.Name, fileName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    items.Add(new StartupItem
+                    {
+                        Name = fileName,
+                        Location = location,
+                        Command = origPath,
+                        IsFolder = true,
+                        Existing = true,
+                        DisabledByTothBoost = true
+                    });
+                }
+            }
+        }
 
         // ---------- Ações (nunca excluem) ----------
 
@@ -133,14 +197,39 @@ namespace TothBoost.Core.Scanners
             if (string.IsNullOrEmpty(item.Command)) return;
             Directory.CreateDirectory(QuarantineFiles);
             var dest = Path.Combine(QuarantineFiles, Path.GetFileName(item.Command));
+
+            var metas = LoadQuarantineFileMetas();
+            metas.RemoveAll(m => string.Equals(m.Name, item.Name, StringComparison.OrdinalIgnoreCase));
+            metas.Add(new QuarantineFileMeta
+            {
+                Name = item.Name,
+                OriginalPath = item.Command,
+                Location = item.Location
+            });
+            SaveQuarantineFileMetas(metas);
+
             File.Move(item.Command, dest, true);
         }
 
         private static void EnableFile(StartupItem item)
         {
-            var src = Path.Combine(QuarantineFiles, Path.GetFileName(item.Command));
+            var fileName = Path.GetFileName(item.Command);
+            var metas = LoadQuarantineFileMetas();
+            var meta = metas.FirstOrDefault(m => string.Equals(m.Name, fileName, StringComparison.OrdinalIgnoreCase));
+
+            var src = Path.Combine(QuarantineFiles, fileName);
             if (!File.Exists(src)) return;
-            File.Move(src, item.Command!, true);
+
+            var targetPath = meta?.OriginalPath ?? item.Command;
+            if (string.IsNullOrEmpty(targetPath)) return;
+
+            var dir = Path.GetDirectoryName(targetPath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+            File.Move(src, targetPath, true);
+
+            metas.RemoveAll(m => string.Equals(m.Name, fileName, StringComparison.OrdinalIgnoreCase));
+            SaveQuarantineFileMetas(metas);
         }
     }
 }

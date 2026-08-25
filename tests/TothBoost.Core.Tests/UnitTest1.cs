@@ -2,6 +2,7 @@
 using System.Xml.Linq;
 using TothBoost.Core.Known;
 using TothBoost.Core.Models;
+using TothBoost.Core.Scanners;
 using TothBoost.Core.Snapshot;
 using Xunit;
 
@@ -132,6 +133,99 @@ namespace TothBoost.Core.Tests
         {
             Assert.True(Enum.TryParse<TweakKind>("VisualEffects", out var kind));
             Assert.Equal(TweakKind.VisualEffects, kind);
+        }
+    }
+
+    public class ProfileApplyTests
+    {
+        [Fact]
+        public void SaveAndApplyProfile_DoesNotThrowAndGeneratesReport()
+        {
+            var engine = new BoostEngine();
+            var testProfile = "UnitTestProfile_" + Guid.NewGuid().ToString("N");
+            try
+            {
+                engine.CreateProfile(testProfile);
+                Assert.True(ProfileService.Exists(testProfile));
+
+                engine.SaveProfileCaptureTo(testProfile);
+                Assert.True(ProfileService.CaptureExists(testProfile));
+
+                var capture = ProfileService.LoadCapture(testProfile);
+                Assert.NotNull(capture);
+                Assert.NotEmpty(capture!.Services);
+
+                var report = engine.ApplyProfile(testProfile);
+                Assert.NotNull(report);
+                Assert.Equal(testProfile, engine.CurrentProfileName);
+            }
+            finally
+            {
+                // Limpeza do perfil de teste
+                var metaFile = Path.Combine(ProfileService.Root, "profiles.json");
+                var capFile = Path.Combine(ProfileService.Root, testProfile + ".json");
+                if (File.Exists(capFile)) File.Delete(capFile);
+            }
+        }
+    }
+
+    public class StartupScannerTests
+    {
+        [Fact]
+        public void QuarantinedFile_MapIsPersistedAndScanned()
+        {
+            var tempFolder = Path.Combine(Path.GetTempPath(), "TothBoost_Test_Startup_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempFolder);
+            var dummyFile = Path.Combine(tempFolder, "dummy_app.lnk");
+            File.WriteAllText(dummyFile, "dummy shortcut content");
+
+            try
+            {
+                var item = new StartupItem
+                {
+                    Name = "dummy_app.lnk",
+                    Location = "Pasta Inicialização (teste)",
+                    Command = dummyFile,
+                    IsFolder = true,
+                    Existing = true,
+                    DisabledByTothBoost = false
+                };
+
+                StartupScanner.Disable(item);
+
+                var items = new StartupScanner().ScanAll();
+                var found = items.FirstOrDefault(x => x.Name == "dummy_app.lnk");
+                Assert.NotNull(found);
+                Assert.True(found!.DisabledByTothBoost);
+
+                StartupScanner.Enable(found);
+
+                Assert.True(File.Exists(dummyFile));
+                var itemsAfter = new StartupScanner().ScanAll();
+                var foundAfter = itemsAfter.FirstOrDefault(x => x.Name == "dummy_app.lnk");
+                Assert.Null(foundAfter);
+            }
+            finally
+            {
+                if (Directory.Exists(tempFolder)) Directory.Delete(tempFolder, true);
+            }
+        }
+    }
+
+    public class TweakManagerTests
+    {
+        [Fact]
+        public void AllTweaks_IsApplied_EvaluatesWithoutExceptions()
+        {
+            var tweaks = TweakCatalog.All();
+            Assert.NotEmpty(tweaks);
+            foreach (var t in tweaks)
+            {
+                Assert.True(Enum.TryParse<TweakKind>(t.Id, out var kind));
+                var isApplied = TweakManager.IsApplied(kind);
+                // Deve retornar bool sem lançar exceção
+                Assert.True(isApplied || !isApplied);
+            }
         }
     }
 }

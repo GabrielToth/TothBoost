@@ -116,6 +116,133 @@ namespace TothBoost.Core
 
         public void SelectProfile(string name) => ProfileService.Select(name);
 
+        /// <summary>
+        /// Aplica todas as configurações gravadas em um perfil (serviços, tarefas, inicialização e ajustes).
+        /// </summary>
+        public ActionReport ApplyProfile(string profileName)
+        {
+            var report = new ActionReport();
+            EnsureBaseline();
+            var capture = ProfileService.LoadCapture(profileName);
+            if (capture is null)
+            {
+                report.Add(profileName, "carregar perfil", false, "Perfil não encontrado ou sem dados salvos.");
+                return report;
+            }
+
+            // 1. Serviços
+            var currentServices = GetServices();
+            foreach (var sState in capture.Services)
+            {
+                var current = currentServices.FirstOrDefault(x => x.Name.Equals(sState.Name, StringComparison.OrdinalIgnoreCase));
+                if (current is null || current.IsProtected) continue;
+
+                var targetStart = (ServiceStartKind)sState.StartKind;
+                if (targetStart == ServiceStartKind.Disabled)
+                {
+                    if (current.StartKind != ServiceStartKind.Disabled || current.RunningState == "Executando")
+                    {
+                        try
+                        {
+                            ServiceActions.ChangeStartKind(current.Name, ServiceStartKind.Disabled);
+                            report.Add(current.Name, "perfil → desabilitado", true);
+                            if (current.RunningState == "Executando")
+                            {
+                                try { ServiceActions.Stop(current.Name); report.Add(current.Name, "parado", true); }
+                                catch (Exception ex) { report.AddError(current.Name, "parar", ex); }
+                            }
+                        }
+                        catch (Exception ex) { report.AddError(current.Name, "perfil serviços", ex); }
+                    }
+                }
+                else
+                {
+                    if (current.StartKind != targetStart)
+                    {
+                        try
+                        {
+                            ServiceActions.ChangeStartKind(current.Name, targetStart);
+                            report.Add(current.Name, $"perfil → {targetStart}", true);
+                        }
+                        catch (Exception ex) { report.AddError(current.Name, "perfil serviços", ex); }
+                    }
+                }
+            }
+
+            // 2. Tarefas Agendadas
+            var currentTasks = GetTasks();
+            foreach (var tState in capture.Tasks)
+            {
+                var current = currentTasks.FirstOrDefault(x => x.FullPath.Equals(tState.FullPath, StringComparison.OrdinalIgnoreCase));
+                if (current is null) continue;
+                if (current.Enabled != tState.Enabled)
+                {
+                    try
+                    {
+                        TaskActions.SetEnabled(current.FullPath, tState.Enabled);
+                        report.Add(current.Name, tState.Enabled ? "perfil → habilitar tarefa" : "perfil → desabilitar tarefa", true);
+                    }
+                    catch (Exception ex) { report.AddError(current.Name, "perfil tarefas", ex); }
+                }
+            }
+
+            // 3. Inicialização
+            var currentStartups = GetStartups();
+            foreach (var stState in capture.Startups)
+            {
+                var current = currentStartups.FirstOrDefault(x => x.Name.Equals(stState.Name, StringComparison.OrdinalIgnoreCase));
+                if (current is null) continue;
+                if (stState.DisabledByTothBoost && !current.DisabledByTothBoost)
+                {
+                    try
+                    {
+                        StartupScanner.Disable(current);
+                        report.Add(current.Name, "perfil → desabilitar inicialização", true);
+                    }
+                    catch (Exception ex) { report.AddError(current.Name, "perfil inicialização", ex); }
+                }
+                else if (!stState.DisabledByTothBoost && current.DisabledByTothBoost)
+                {
+                    try
+                    {
+                        StartupScanner.Enable(current);
+                        report.Add(current.Name, "perfil → habilitar inicialização", true);
+                    }
+                    catch (Exception ex) { report.AddError(current.Name, "perfil inicialização", ex); }
+                }
+            }
+
+            // 4. Ajustes (Tweaks)
+            foreach (var twState in capture.Tweaks)
+            {
+                if (Enum.TryParse<TweakKind>(twState.Id, out var kind))
+                {
+                    var isApplied = TweakManager.IsApplied(kind);
+                    if (twState.Applied && !isApplied)
+                    {
+                        try
+                        {
+                            TweakManager.Apply(kind);
+                            report.Add(TweakCatalog.Get(twState.Id).Name, "perfil → aplicar ajuste", true);
+                        }
+                        catch (Exception ex) { report.AddError(twState.Id, "perfil ajuste", ex); }
+                    }
+                    else if (!twState.Applied && isApplied)
+                    {
+                        try
+                        {
+                            TweakManager.Revert(kind);
+                            report.Add(TweakCatalog.Get(twState.Id).Name, "perfil → reverter ajuste", true);
+                        }
+                        catch (Exception ex) { report.AddError(twState.Id, "perfil ajuste", ex); }
+                    }
+                }
+            }
+
+            ProfileService.Select(profileName);
+            return report;
+        }
+
         // ---------- Pontos de restauração ----------
 
         public List<RestorePointInfo> ListRestorePoints() => RestorePointService.ListPoints();

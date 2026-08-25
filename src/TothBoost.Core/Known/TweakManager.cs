@@ -110,7 +110,7 @@ namespace TothBoost.Core.Known
             TweakKind.Hibernate => !HibernateEnabled(),
             TweakKind.UltimatePower => GetActiveScheme()?.StartsWith("e9a42b02", StringComparison.OrdinalIgnoreCase) == true,
             TweakKind.HighPerformance => GetActiveScheme()?.StartsWith("8c5e7fda", StringComparison.OrdinalIgnoreCase) == true,
-            TweakKind.BlackWallpaper => GetWallpaper()?.StartsWith(BlackWallpaperId, StringComparison.OrdinalIgnoreCase) == true,
+            TweakKind.BlackWallpaper => string.Equals(GetWallpaper(), BlackWallpaperPath, StringComparison.OrdinalIgnoreCase),
             TweakKind.Transparency => GetDword(Hive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "EnableTransparency") == 0,
             TweakKind.Animations => GetAnimationFlagsApplied(),
             TweakKind.Thumbnails =>
@@ -322,7 +322,7 @@ namespace TothBoost.Core.Known
             {
                 // critério: animação de minimizar desligada
                 var ani = new ANIMATIONINFO { cbSize = (uint)Marshal.SizeOf<ANIMATIONINFO>() };
-                if (!SystemParametersInfo(0x48, 0, ref ani, 0)) return false;
+                if (!SystemParametersInfo(0x48, (uint)Marshal.SizeOf<ANIMATIONINFO>(), ref ani, 0)) return false;
                 return ani.iMinAnimate == 0;
             }
             catch { return false; }
@@ -344,7 +344,7 @@ namespace TothBoost.Core.Known
                     if (name == "Minimize")
                     {
                         var ani = new ANIMATIONINFO { cbSize = (uint)Marshal.SizeOf<ANIMATIONINFO>(), iMinAnimate = (int)(restore ? v : 0) };
-                        SystemParametersInfo(set, 0, ref ani, 0x03);
+                        SystemParametersInfo(set, (uint)Marshal.SizeOf<ANIMATIONINFO>(), ref ani, 0x03);
                     }
                     else
                     {

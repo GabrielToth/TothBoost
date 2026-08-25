@@ -121,7 +121,7 @@ namespace TothBoost.Core.Scanners
         public static void Stop(string name)
         {
             var (exit, outStr) = Proc.Sc("stop", name);
-            if (exit != 0 && !outStr.Contains("1066"))
+            if (exit != 0 && !outStr.Contains("1066") && !outStr.Contains("1062"))
                 throw new InvalidOperationException($"{name}: {outStr.Trim()}");
         }
 

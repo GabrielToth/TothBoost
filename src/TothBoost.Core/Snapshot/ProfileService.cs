@@ -81,6 +81,23 @@ namespace TothBoost.Core.Snapshot
             }
         }
 
+        public static ProfileCapture? LoadCapture(string profileName)
+        {
+            lock (Sync)
+            {
+                var file = Path.Combine(Root, Sanitize(profileName) + ".json");
+                if (!File.Exists(file)) return null;
+                try
+                {
+                    return JsonSerializer.Deserialize<ProfileCapture>(File.ReadAllText(file, System.Text.Encoding.UTF8), JsonOpts);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+        }
+
         public static bool CaptureExists(string profileName)
         {
             lock (Sync)

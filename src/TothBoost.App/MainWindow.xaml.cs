@@ -403,7 +403,7 @@ namespace TothBoost.App
             }, "Encerrar processo");
         }
 
-        private void ProcRowRestart_Click(object sender, RoutedEventArgs e)
+        private async void ProcRowRestart_Click(object sender, RoutedEventArgs e)
         {
             if ((sender as Button)?.DataContext is not ProcRow r) return;
             if (string.IsNullOrEmpty(r.Path))
@@ -411,23 +411,55 @@ namespace TothBoost.App
                 StatusText.Text = r.Name + ": caminho indisponível para reiniciar.";
                 return;
             }
-            try
+            await RunAction(() =>
             {
-                Process.Start(new ProcessStartInfo(r.Path) { UseShellExecute = true });
-                StatusText.Text = "Reiniciando: " + r.Name;
-            }
-            catch (Exception ex) { MessageBox.Show("Não foi possível reiniciar: " + ex.Message, "TothBoost", MessageBoxButton.OK, MessageBoxImage.Warning); }
+                var report = new ActionReport();
+                try
+                {
+                    try
+                    {
+                        using var p = Process.GetProcessById(r.Pid);
+                        p.Kill(false);
+                        p.WaitForExit(2000);
+                    }
+                    catch { }
+                    Process.Start(new ProcessStartInfo(r.Path) { UseShellExecute = true });
+                    report.Add(r.Name, "reiniciado", true);
+                }
+                catch (Exception ex) { report.AddError(r.Name, "reiniciar", ex); }
+                return report;
+            }, "Reiniciar processo");
         }
 
-        private void BtnProcRestartSel_Click(object sender, RoutedEventArgs e)
+        private async void BtnProcRestartSel_Click(object sender, RoutedEventArgs e)
         {
-            var sel = _procAll.Where(r => r.IsChecked && !string.IsNullOrEmpty(r.Path)).ToList();
-            foreach (var r in sel)
+            var sel = _procAll.Where(r => r.IsChecked && !string.IsNullOrEmpty(r.Path) && !r.IsProtected).ToList();
+            if (sel.Count == 0)
             {
-                try { Process.Start(new ProcessStartInfo(r.Path) { UseShellExecute = true }); }
-                catch { }
+                MessageBox.Show("Nenhum processo selecionável com caminho válido para reiniciar.", "TothBoost", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
             }
-            StatusText.Text = $"Solicitada reinicialização de {sel.Count} processo(s).";
+            await RunAction(() =>
+            {
+                var report = new ActionReport();
+                foreach (var r in sel)
+                {
+                    try
+                    {
+                        try
+                        {
+                            using var p = Process.GetProcessById(r.Pid);
+                            p.Kill(false);
+                            p.WaitForExit(2000);
+                        }
+                        catch { }
+                        Process.Start(new ProcessStartInfo(r.Path) { UseShellExecute = true });
+                        report.Add(r.Name, "reiniciado", true);
+                    }
+                    catch (Exception ex) { report.AddError(r.Name, "reiniciar", ex); }
+                }
+                return report;
+            }, "Reiniciar processos");
         }
 
         // ---------- tarefas ----------
@@ -552,12 +584,18 @@ namespace TothBoost.App
             }
         }
 
-        private void BtnProfileUse_Click(object sender, RoutedEventArgs e)
+        private async void BtnProfileUse_Click(object sender, RoutedEventArgs e)
         {
             if ((sender as Button)?.DataContext is not ProfileCard c) return;
-            _engine.SelectProfile(c.Name);
+            var confirm = MessageBox.Show(
+                $"Aplicar o perfil '{c.Name}' no sistema?\n\n" +
+                "Esta ação alterará a inicialização de serviços, tarefas, inicialização e ajustes " +
+                "conforme gravado neste perfil.",
+                "Aplicar Perfil", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.OK) return;
+
+            await RunAction(() => _engine.ApplyProfile(c.Name), "Aplicar Perfil: " + c.Name);
             RefreshProfilesUi();
-            StatusText.Text = "Perfil selecionado: '" + c.Name + "' — próximo salvamento vai para ele.";
         }
 
         private void BtnProfileCreate_Click(object sender, RoutedEventArgs e)
