@@ -1,5 +1,5 @@
 using System.Windows;
-using TothBoost.Core.Models;
+using TothBoost.Core.Utilities;
 
 namespace TothBoost.App
 {
@@ -9,16 +9,17 @@ namespace TothBoost.App
         {
             InitializeComponent();
             Title = title;
-            SummaryText.Text = $"{report.Succeeded} concluídos · {report.Failed} falhas — {title}";
-            SummaryText.Foreground = report.Failed == 0
+            SummaryText.Text = $"{report.SuccessCount} succeeded · {report.ErrorCount} failed — {title}";
+            SummaryText.Foreground = report.ErrorCount == 0
                 ? System.Windows.Media.Brushes.LightGreen
                 : System.Windows.Media.Brushes.OrangeRed;
-            ListReport.ItemsSource = report.Lines.Select(l => new ReportLine
+
+            ListReport.ItemsSource = report.Items.Select(l => new ReportLine
             {
                 Icon = l.Success ? "✔" : "✘",
-                Item = l.Item,
+                Item = l.TargetName,
                 Action = l.Action,
-                Detail = l.Detail
+                Detail = l.Details
             }).ToList();
         }
 

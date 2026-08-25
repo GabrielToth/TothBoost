@@ -4,9 +4,8 @@ using TothBoost.Core.Models;
 namespace TothBoost.Core.Snapshot
 {
     /// <summary>
-    /// Perfis do TothBoost: o perfil "Default" guarda as configurações salvas do
-    /// usuário atual (estado de serviços, tarefas, inicialização e ajustes).
-    /// A estrutura já suporta vários perfis (criar/selecionar no futuro).
+    /// TothBoost Profile Service: "Default" profile stores saved settings
+    /// (state of services, scheduled tasks, startup items, and OS tweaks).
     /// </summary>
     public static class ProfileService
     {
@@ -18,7 +17,7 @@ namespace TothBoost.Core.Snapshot
 
         public sealed class ProfileMeta
         {
-            public string? Name { get; set; }
+            public string Name { get; set; } = "Default";
             public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
             public string? HostName { get; set; }
             public bool IsDefault { get; set; }
@@ -31,7 +30,7 @@ namespace TothBoost.Core.Snapshot
             public List<ProfileMeta> Profiles { get; set; } = new();
         }
 
-        /// <summary>Garante que o perfil Default exista (criado na primeira abertura).</summary>
+        /// <summary>Ensures the Default profile exists (created on first launch).</summary>
         public static void EnsureDefault()
         {
             lock (Sync)
@@ -56,8 +55,8 @@ namespace TothBoost.Core.Snapshot
         {
             lock (Sync)
             {
-                var meta = LoadMeta();
-                return meta.Current ?? meta.Profiles.FirstOrDefault()?.Name;
+                EnsureDefault();
+                return LoadMeta().Current;
             }
         }
 
@@ -65,19 +64,41 @@ namespace TothBoost.Core.Snapshot
         {
             lock (Sync)
             {
-                var meta = LoadMeta();
-                return meta.Profiles.ToList();
+                EnsureDefault();
+                return LoadMeta().Profiles;
             }
         }
 
-        /// <summary>Grava o estado atual do usuário no perfil indicado (Default.json etc.).</summary>
-        public static void SaveCapture(string profileName, ProfileCapture capture)
+        public static bool Exists(string profileName)
         {
             lock (Sync)
             {
-                Directory.CreateDirectory(Root);
-                var file = Path.Combine(Root, Sanitize(profileName) + ".json");
-                File.WriteAllText(file, JsonSerializer.Serialize(capture, JsonOpts), System.Text.Encoding.UTF8);
+                var meta = LoadMeta();
+                return meta.Profiles.Any(p => string.Equals(p.Name, profileName, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        public static ProfileMeta Create(string name)
+        {
+            lock (Sync)
+            {
+                EnsureDefault();
+                var meta = LoadMeta();
+                var clean = Sanitize(name);
+                var existing = meta.Profiles.FirstOrDefault(p => string.Equals(p.Name, clean, StringComparison.OrdinalIgnoreCase));
+                if (existing != null) return existing;
+
+                var item = new ProfileMeta
+                {
+                    Name = clean,
+                    CreatedUtc = DateTime.UtcNow,
+                    HostName = Environment.MachineName,
+                    IsDefault = false
+                };
+                meta.Profiles.Add(item);
+                meta.Current = clean;
+                SaveMeta(meta);
+                return item;
             }
         }
 
@@ -102,42 +123,8 @@ namespace TothBoost.Core.Snapshot
         {
             lock (Sync)
             {
-                return File.Exists(Path.Combine(Root, Sanitize(profileName) + ".json"));
-            }
-        }
-
-        /// <summary>Cria um novo perfil e o torna o atual. Se já existir, apenas seleciona.</summary>
-        public static void Create(string name)
-        {
-            lock (Sync)
-            {
-                var meta = LoadMeta();
-                var existing = meta.Profiles.FirstOrDefault(p =>
-                    string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
-                if (existing is not null)
-                {
-                    meta.Current = existing.Name;
-                    SaveMeta(meta);
-                    return;
-                }
-                meta.Profiles.Add(new ProfileMeta
-                {
-                    Name = name,
-                    CreatedUtc = DateTime.UtcNow,
-                    HostName = Environment.MachineName,
-                    IsDefault = false
-                });
-                meta.Current = name;
-                SaveMeta(meta);
-            }
-        }
-
-        public static bool Exists(string name)
-        {
-            lock (Sync)
-            {
-                var meta = LoadMeta();
-                return meta.Profiles.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+                var file = Path.Combine(Root, Sanitize(profileName) + ".json");
+                return File.Exists(file);
             }
         }
 
@@ -145,57 +132,112 @@ namespace TothBoost.Core.Snapshot
         {
             lock (Sync)
             {
+                EnsureDefault();
                 var meta = LoadMeta();
-                var p = meta.Profiles.FirstOrDefault(x =>
-                    string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
-                if (p is null) return;
-                meta.Current = p.Name;
+                var clean = Sanitize(name);
+                if (!meta.Profiles.Any(p => string.Equals(p.Name, clean, StringComparison.OrdinalIgnoreCase))) return;
+
+                meta.Current = clean;
                 SaveMeta(meta);
             }
         }
 
-        public static void MarkSaved(string name)
+        public static void MarkSaved(string profileName)
+        {
+            lock (Sync)
+            {
+                EnsureDefault();
+                var meta = LoadMeta();
+                var target = meta.Profiles.FirstOrDefault(p => string.Equals(p.Name, profileName, StringComparison.OrdinalIgnoreCase));
+                if (target != null)
+                {
+                    target.LastSavedUtc = DateTime.UtcNow;
+                    SaveMeta(meta);
+                }
+            }
+        }
+
+        public static void SaveCapture(string profileName, ProfileCapture capture)
+        {
+            lock (Sync)
+            {
+                Directory.CreateDirectory(Root);
+                capture.Name = Sanitize(profileName);
+                capture.CapturedAt = DateTime.Now;
+                var json = JsonSerializer.Serialize(capture, JsonOpts);
+                File.WriteAllText(Path.Combine(Root, capture.Name + ".json"), json);
+            }
+        }
+
+        public static bool Delete(string name)
         {
             lock (Sync)
             {
                 var meta = LoadMeta();
-                var p = meta.Profiles.FirstOrDefault(x =>
-                    string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
-                if (p is null) return;
-                p.LastSavedUtc = DateTime.UtcNow;
+                var item = meta.Profiles.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (item == null || item.IsDefault) return false;
+
+                meta.Profiles.Remove(item);
+                if (string.Equals(meta.Current, item.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    meta.Current = "Default";
+                }
                 SaveMeta(meta);
+
+                try
+                {
+                    var file = Path.Combine(Root, Sanitize(name) + ".json");
+                    if (File.Exists(file)) File.Delete(file);
+                }
+                catch { }
+                return true;
             }
         }
 
         private static readonly object Sync = new();
-        private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
+        private static readonly JsonSerializerOptions JsonOpts = new()
+        {
+            WriteIndented = true,
+            PropertyNameCaseInsensitive = true
+        };
 
         private static MetaFile LoadMeta()
         {
             try
             {
-                if (!File.Exists(MetaPath)) return new MetaFile();
-                return JsonSerializer.Deserialize<MetaFile>(File.ReadAllText(MetaPath)) ?? new MetaFile();
+                if (File.Exists(MetaPath))
+                {
+                    var json = File.ReadAllText(MetaPath);
+                    return JsonSerializer.Deserialize<MetaFile>(json, JsonOpts) ?? new MetaFile();
+                }
             }
-            catch { return new MetaFile(); }
+            catch { }
+            return new MetaFile();
         }
 
         private static void SaveMeta(MetaFile meta)
         {
-            File.WriteAllText(MetaPath, JsonSerializer.Serialize(meta, JsonOpts), System.Text.Encoding.UTF8);
+            try
+            {
+                Directory.CreateDirectory(Root);
+                var json = JsonSerializer.Serialize(meta, JsonOpts);
+                File.WriteAllText(MetaPath, json);
+            }
+            catch { }
         }
 
         private static string Sanitize(string name)
         {
             foreach (var c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
-            return name;
+            return name.Trim();
         }
     }
 
-    /// <summary>Estado capturado de um perfil: serviços, tarefas, inicialização e ajustes.</summary>
     public class ProfileCapture
     {
-        public DateTime SavedUtc { get; set; } = DateTime.UtcNow;
+        public string Name { get; set; } = "";
+        public DateTime CapturedAt { get; set; } = DateTime.Now;
         public List<ProfileServiceState> Services { get; set; } = new();
         public List<ProfileTaskState> Tasks { get; set; } = new();
         public List<ProfileStartupState> Startups { get; set; } = new();
@@ -204,29 +246,28 @@ namespace TothBoost.Core.Snapshot
 
     public class ProfileServiceState
     {
-        public string? Name { get; set; }
+        public string Name { get; set; } = "";
         public int StartKind { get; set; }
-        public bool Protected { get; set; }
+        public bool Running { get; set; }
     }
 
     public class ProfileTaskState
     {
-        public string? FullPath { get; set; }
-        public string? Name { get; set; }
+        public string FullPath { get; set; } = "";
         public bool Enabled { get; set; }
     }
 
     public class ProfileStartupState
     {
-        public string? Name { get; set; }
-        public string? Location { get; set; }
+        public string Name { get; set; } = "";
+        public string Location { get; set; } = "";
         public bool Exists { get; set; }
         public bool DisabledByTothBoost { get; set; }
     }
 
     public class ProfileTweakState
     {
-        public string? Id { get; set; }
+        public string Id { get; set; } = "";
         public bool Applied { get; set; }
     }
 }

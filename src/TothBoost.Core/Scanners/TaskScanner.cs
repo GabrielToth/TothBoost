@@ -5,8 +5,7 @@ using TothBoost.Core.Utilities;
 namespace TothBoost.Core.Scanners
 {
     /// <summary>
-    /// Lista as tarefas agendadas do Windows (schtasks) e permite habilitar/desabilitar
-    /// sem excluir nada.
+    /// Scans Windows Scheduled Tasks (schtasks) and allows enabling/disabling tasks.
     /// </summary>
     public class TaskScanner
     {
@@ -38,7 +37,7 @@ namespace TothBoost.Core.Scanners
                         var logon = (string?)Child(Child(taskEl, "Principal"), "LogonType");
                         var enabled = (bool?)Child(Child(taskEl, "Settings"), "Enabled") ?? true;
 
-                        var path = string.IsNullOrEmpty(uri) ? "\\Desconhecido" : uri;
+                        var path = string.IsNullOrEmpty(uri) ? "\\Unknown" : uri;
                         var name = path.Split('\\').Last();
 
                         tasks.Add(new ScheduledTaskInfo
@@ -46,55 +45,82 @@ namespace TothBoost.Core.Scanners
                             FullPath = path,
                             Name = string.IsNullOrEmpty(name) ? path : name,
                             Enabled = enabled,
-                            Author = string.IsNullOrEmpty(author) ? null : author,
+                            Author = author,
                             LogonDescription = logon
                         });
                     }
                 }
-                catch { /* bloco XML corrompido — ignorar */ }
+                catch { }
             }
-            return tasks.OrderBy(t => t.FullPath).ToList();
+            return tasks.OrderBy(t => t.Name).ToList();
         }
 
-        private static XElement? Child(XElement? parent, string localName)
+        public List<ScheduledTaskInfo> ParseTasksXml(string xmlContent)
         {
-            return parent?.Elements().FirstOrDefault(e => e.Name.LocalName == localName);
-        }
-
-        private static List<string> ParseXml(string raw)
-        {
-            var chunks = new List<string>();
-            var start = raw.IndexOf("<?xml", StringComparison.OrdinalIgnoreCase);
-            while (start >= 0)
+            var tasks = new List<ScheduledTaskInfo>();
+            try
             {
-                var next = raw.IndexOf("<?xml", start + 4, StringComparison.OrdinalIgnoreCase);
-                var end = next >= 0 ? next : raw.Length;
-                var chunk = raw.Substring(start, end - start);
-                var taskEnd = chunk.LastIndexOf("</Task>", StringComparison.OrdinalIgnoreCase);
-                if (taskEnd > 0) chunk = chunk.Substring(0, taskEnd + "</Task>".Length);
-                chunks.Add(chunk);
-                start = next;
+                var clean = StripDeclaration(xmlContent);
+                var doc = XDocument.Parse(clean);
+                var root = doc.Root;
+                if (root is null) return tasks;
+
+                var items = root.Name.LocalName == "Task"
+                    ? new[] { root }
+                    : root.Elements().Where(e => e.Name.LocalName == "Task");
+
+                foreach (var taskEl in items)
+                {
+                    var reg = Child(taskEl, "RegistrationInfo");
+                    var name = (string?)Child(taskEl, "TaskName") ?? (string?)Child(reg, "URI") ?? "Task";
+                    var state = (string?)Child(taskEl, "State");
+                    var enabled = !string.Equals(state, "Disabled", StringComparison.OrdinalIgnoreCase);
+
+                    tasks.Add(new ScheduledTaskInfo
+                    {
+                        FullPath = name,
+                        Name = name,
+                        Enabled = enabled
+                    });
+                }
             }
-            return chunks;
+            catch { }
+            return tasks;
         }
 
         private static string StripDeclaration(string xml)
         {
-            var end = xml.IndexOf("?>", StringComparison.Ordinal);
-            if (end >= 0 && xml.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase))
-                return xml.Substring(end + 2);
-            return xml;
+            var idx = xml.IndexOf("?>", StringComparison.Ordinal);
+            return idx >= 0 ? xml[(idx + 2)..].TrimStart() : xml;
         }
-    }
 
-    public static class TaskActions
-    {
-        public static void SetEnabled(string fullPath, bool enabled)
+        private static XElement? Child(XElement? el, string localName)
+            => el?.Elements().FirstOrDefault(e => e.Name.LocalName.Equals(localName, StringComparison.OrdinalIgnoreCase));
+
+        private static IEnumerable<string> ParseXml(string raw)
         {
-            var flag = enabled ? "/ENABLE" : "/DISABLE";
-            var (exit, outStr) = Proc.Run("schtasks.exe", $"/Change /TN \"{fullPath}\" {flag}");
-            if (exit != 0)
-                throw new InvalidOperationException($"schtasks falhou: {outStr.Trim()}");
+            const string marker = "<?xml";
+            int pos = 0;
+            while (true)
+            {
+                int start = raw.IndexOf(marker, pos, StringComparison.OrdinalIgnoreCase);
+                if (start < 0) break;
+                int end = raw.IndexOf(marker, start + marker.Length, StringComparison.OrdinalIgnoreCase);
+                if (end < 0)
+                {
+                    yield return raw[start..];
+                    break;
+                }
+                yield return raw[start..end];
+                pos = end;
+            }
+        }
+
+        public static void SetEnabled(string fullPath, bool enable)
+        {
+            var arg = (enable ? "/change /enable /tn \"" : "/change /disable /tn \"") + fullPath + "\"";
+            var (exit, outStr) = Proc.Run("schtasks.exe", arg);
+            if (exit != 0) throw new InvalidOperationException($"{fullPath}: {outStr.Trim()}");
         }
     }
 }

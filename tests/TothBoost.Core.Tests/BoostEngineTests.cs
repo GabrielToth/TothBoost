@@ -54,14 +54,13 @@ namespace TothBoost.Core.Tests
             var protectedSvc = new ServiceInfo
             {
                 Name = "ProtectedTestSvc",
-                Risk = RiskLevel.Protected,
-                IsProtected = true
+                Risk = RiskLevel.Protected
             };
 
             var report = engine.DisableServices(new[] { "ProtectedTestSvc" }, new[] { protectedSvc });
             Assert.NotNull(report);
             Assert.True(report.HasErrors);
-            Assert.Contains(report.Items, i => i.Action == "bloqueado");
+            Assert.Contains(report.Items, i => i.Action == "blocked");
         }
     }
 }
