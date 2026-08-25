@@ -44,7 +44,7 @@ namespace TothBoost.App
 
     public class ProcRow : RowBase
     {
-        public ProcessInfo P { get; }
+        public ProcessInfo P { get; private set; }
         public ProcRow(ProcessInfo p) => P = p;
         public int Pid => P.Pid;
         public string Name => P.Name;
@@ -63,6 +63,23 @@ namespace TothBoost.App
         public string GpuText => P.GpuPercent < 0 ? "—" : P.GpuPercent.ToString("0") + "%";
         public string ReadText => FormatIo(P.IoReadKbs);
         public string WriteText => FormatIo(P.IoWriteKbs);
+
+        public void Update(ProcessInfo newP)
+        {
+            var oldMem = P.WorkingSetMb;
+            var oldCpu = P.CpuPercent;
+            var oldGpu = P.GpuPercent;
+            var oldRead = P.IoReadKbs;
+            var oldWrite = P.IoWriteKbs;
+
+            P = newP;
+
+            if (oldMem != newP.WorkingSetMb) OnPropertyChanged(nameof(MemMb));
+            if (Math.Abs(oldCpu - newP.CpuPercent) > 0.01) OnPropertyChanged(nameof(CpuText));
+            if (Math.Abs(oldGpu - newP.GpuPercent) > 0.01) OnPropertyChanged(nameof(GpuText));
+            if (Math.Abs(oldRead - newP.IoReadKbs) > 0.01) OnPropertyChanged(nameof(ReadText));
+            if (Math.Abs(oldWrite - newP.IoWriteKbs) > 0.01) OnPropertyChanged(nameof(WriteText));
+        }
 
         private static string FormatIo(double kbs)
         {

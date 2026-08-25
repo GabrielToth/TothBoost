@@ -20,7 +20,11 @@ namespace TothBoost.Core.Tests
         public void BoostEngine_GetProcesses_ReturnsList()
         {
             var engine = new BoostEngine();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             var procs = engine.GetProcesses();
+            sw.Stop();
+            // Log duration
+            System.Console.WriteLine($"GetProcesses took: {sw.ElapsedMilliseconds} ms");
             Assert.NotNull(procs);
             Assert.NotEmpty(procs);
         }

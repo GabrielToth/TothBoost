@@ -33,8 +33,42 @@ namespace TothBoost.Core.Scanners
         private sealed class GpuSampler
         {
             private readonly Dictionary<string, PerformanceCounter> _counters = new();
+            private readonly object _lock = new();
+            private Dictionary<int, double> _cached = new();
+            private DateTime _lastSample = DateTime.MinValue;
+            private bool _isSampling;
 
             public Dictionary<int, double> Sample()
+            {
+                lock (_lock)
+                {
+                    var now = DateTime.UtcNow;
+                    if ((now - _lastSample).TotalSeconds >= 4 && !_isSampling)
+                    {
+                        _isSampling = true;
+                        Task.Run(() =>
+                        {
+                            try
+                            {
+                                var sampled = DoSample();
+                                lock (_lock)
+                                {
+                                    _cached = sampled;
+                                    _lastSample = DateTime.UtcNow;
+                                }
+                            }
+                            catch { }
+                            finally
+                            {
+                                lock (_lock) { _isSampling = false; }
+                            }
+                        });
+                    }
+                    return new Dictionary<int, double>(_cached);
+                }
+            }
+
+            private Dictionary<int, double> DoSample()
             {
                 var result = new Dictionary<int, double>();
                 try

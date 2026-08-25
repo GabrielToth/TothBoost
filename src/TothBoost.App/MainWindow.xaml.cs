@@ -209,8 +209,31 @@ namespace TothBoost.App
         private async Task RefreshProcesses()
         {
             var procs = await Task.Run(_engine.GetProcesses);
-            _procAll.Clear();
-            foreach (var p in procs) _procAll.Add(new ProcRow(p));
+            var newByPid = procs.ToDictionary(p => p.Pid);
+            var existingByPid = _procAll.ToDictionary(r => r.Pid);
+
+            // Remove processos que encerraram
+            for (int i = _procAll.Count - 1; i >= 0; i--)
+            {
+                if (!newByPid.ContainsKey(_procAll[i].Pid))
+                {
+                    _procAll.RemoveAt(i);
+                }
+            }
+
+            // Atualiza métricas in-place ou adiciona novos processos
+            foreach (var p in procs)
+            {
+                if (existingByPid.TryGetValue(p.Pid, out var existingRow))
+                {
+                    existingRow.Update(p);
+                }
+                else
+                {
+                    _procAll.Add(new ProcRow(p));
+                }
+            }
+
             ApplyProcFilter();
         }
 
