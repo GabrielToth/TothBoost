@@ -48,7 +48,7 @@
                             <TextBox x:Name="ProcSearch" Width="260" TextChanged="ProcSearch_TextChanged" ToolTip="Search process by name"/>
                             <TextBlock x:Name="ProcCount" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource TextDim}" FontSize="12"/>
                             <Separator Width="24"/>
-                            <Button x:Name="BtnProcSelectAll" Style="{StaticResource BtnPrimary}" Content="Select All (Killable)" Click="BtnProcSelectAll_Click" ToolTip="Selects all user processes that can be safely terminated"/>
+                            <Button x:Name="BtnProcSelectAll" Style="{StaticResource BtnPrimary}" Content="Select All (Killable)" Click="BtnProcSelectAll_Click" ToolTip="Selects all visible non-protected processes"/>
                             <Button x:Name="BtnProcKillSel" Style="{StaticResource BtnRed}" Content="Terminate Selected" Click="BtnProcKillSel_Click" ToolTip="Terminates selected processes (protected processes remain locked)"/>
                             <Button x:Name="BtnProcRestartSel" Style="{StaticResource BtnPrimary}" Content="Restart Selected" Click="BtnProcRestartSel_Click"/>
                             <CheckBox x:Name="ChkAutoRefresh" Content="Auto-refresh (2s)" VerticalAlignment="Center" Margin="12,0,0,0" IsChecked="True" Checked="AutoRefreshChanged" Unchecked="AutoRefreshChanged"/>
@@ -56,10 +56,12 @@
                         </WrapPanel>
                     </Border>
 
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
-                            <TextBlock Text="USER PROCESSES — Safe to terminate or restart" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,0,0,6"/>
-                            <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" MaxHeight="380" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" PreviewMouseWheel="DataGrid_PreviewMouseWheel">
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Bg1}" CornerRadius="10" Padding="12,8" Margin="0,0,0,8">
+                        <Button x:Name="BtnProcViewToggle" Style="{StaticResource BtnAccent}" Content="Switch to System Processes" Click="BtnProcViewToggle_Click" Padding="12,6" HorizontalAlignment="Left"/>
+                    </Border>
+
+                    <TextBlock x:Name="ProcViewHeader" DockPanel.Dock="Top" Text="USER PROCESSES — Safe to terminate or restart" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,2,0,6"/>
+                    <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" PreviewMouseWheel="DataGrid_PreviewMouseWheel">
                                 <DataGrid.Columns>
                                     <DataGridTemplateColumn Header="Actions" Width="150">
                                         <DataGridTemplateColumn.CellTemplate>
@@ -105,37 +107,6 @@
                                     </DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
-                            <Border Background="{StaticResource Bg1}" CornerRadius="8" Padding="10,8" Margin="0,20,0,6">
-                                <TextBlock Text="SYSTEM PROCESSES — PROTECTED (Cannot be terminated)" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Red}"/>
-                            </Border>
-                            <DataGrid x:Name="GridProcSystem" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" MaxHeight="280" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" PreviewMouseWheel="DataGrid_PreviewMouseWheel">
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn Width="36">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}"/>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="70" SortMemberPath="Pid"/>
-                                    <DataGridTextColumn Header="Process Name" Binding="{Binding Name}" Width="190" SortMemberPath="Name"/>
-                                    <DataGridTextColumn Header="RAM (MB)" Binding="{Binding MemMb}" Width="95" SortMemberPath="MemMb"/>
-                                    <DataGridTextColumn Header="CPU %" Binding="{Binding CpuText}" Width="80"/>
-                                    <DataGridTextColumn Header="GPU %" Binding="{Binding GpuText}" Width="80"/>
-                                    <DataGridTextColumn Header="Disk Read" Binding="{Binding ReadText}" Width="100"/>
-                                    <DataGridTextColumn Header="Disk Write" Binding="{Binding WriteText}" Width="100"/>
-                                    <DataGridTextColumn Header="Executable Path" Binding="{Binding Path}" Width="*"/>
-                                    <DataGridTemplateColumn Header="Protection" Width="100">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding ProtectionLabel}" Foreground="{Binding ProtectionColor}" FontWeight="SemiBold"/>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </StackPanel>
-                    </ScrollViewer>
                 </DockPanel>
             </TabItem>
 
@@ -159,7 +130,7 @@
                             <DataGridTemplateColumn Header="State" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <ToggleButton IsChecked="{Binding IsOn, Mode=OneWay}" Style="{StaticResource SwitchToggleStyle}" ToolTip="{Binding ToggleTip}" Click="StartupRowToggle_Click"/>
+                                        <ToggleButton IsChecked="{Binding IsOn, Mode=OneWay}" Style="{StaticResource ToggleSwitch}" ToolTip="{Binding ToggleTip}" Click="StartupRowToggle_Click"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -201,7 +172,7 @@
                             <DataGridTemplateColumn Header="State" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <ToggleButton IsChecked="{Binding IsOn, Mode=OneWay}" Style="{StaticResource SwitchToggleStyle}" IsEnabled="{Binding CanTouch}" ToolTip="{Binding ToggleTip}" Click="SvcRowToggle_Click"/>
+                                        <ToggleButton IsChecked="{Binding IsOn, Mode=OneWay}" Style="{StaticResource ToggleSwitch}" IsEnabled="{Binding CanTouch}" ToolTip="{Binding ToggleTip}" Click="SvcRowToggle_Click"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -244,7 +215,7 @@
                             <DataGridTemplateColumn Header="State" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <ToggleButton IsChecked="{Binding IsOn, Mode=OneWay}" Style="{StaticResource SwitchToggleStyle}" ToolTip="{Binding ToggleTip}" Click="TaskRowToggle_Click"/>
+                                        <ToggleButton IsChecked="{Binding IsOn, Mode=OneWay}" Style="{StaticResource ToggleSwitch}" ToolTip="{Binding ToggleTip}" Click="TaskRowToggle_Click"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -268,6 +239,17 @@
             <TabItem Header="System Tweaks">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,8,0,0">
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="System Clean &amp; Performance Utilities" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <WrapPanel Margin="0,0,0,4">
+                                    <Button x:Name="BtnCleanJunk" Style="{StaticResource BtnPrimary}" Content="🧹 Clean Junk &amp; Temp Files" Click="BtnCleanJunk_Click" Margin="0,0,10,6" Padding="12,6" ToolTip="Scans and removes temporary files, Prefetch, and DirectX Shader caches"/>
+                                    <Button x:Name="BtnTrimRam" Style="{StaticResource BtnGreen}" Content="⚡ Free Up RAM (Trim Working Set)" Click="BtnTrimRam_Click" Margin="0,0,10,6" Padding="12,6" ToolTip="Frees inactive working set RAM from background processes"/>
+                                    <Button x:Name="BtnFlushDns" Style="{StaticResource BtnAccent}" Content="🌐 Flush DNS Cache" Click="BtnFlushDns_Click" Margin="0,0,10,6" Padding="12,6" ToolTip="Clears Windows DNS resolver cache to fix connection latencies"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
                         <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="System Fine-Tuning Tweaks (All Reversible)" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>

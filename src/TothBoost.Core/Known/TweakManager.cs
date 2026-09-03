@@ -78,6 +78,13 @@ namespace TothBoost.Core.Known
                 Name = "Disable File Thumbnails",
                 Description = "Explorer displays icons instead of thumbnail previews and taskbar stops rendering live previews. Reversible.",
                 Category = "Visual"
+            },
+            new TweakInfo
+            {
+                Id = nameof(TweakKind.NetworkThrottling),
+                Name = "Disable Network Throttling for Gaming",
+                Description = "Disables Windows network throttling index and reserves 100% CPU responsiveness for active games.",
+                Category = "Gaming"
             }
         };
 
@@ -100,6 +107,7 @@ namespace TothBoost.Core.Known
             TweakKind.Transparency => GetDword(Hive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "EnableTransparency") == 0,
             TweakKind.Animations => GetAnimationFlagsApplied(),
             TweakKind.Thumbnails => GetDword(Hive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "IconsOnly") == 1,
+            TweakKind.NetworkThrottling => NetworkOptimizer.IsNetworkThrottlingDisabled(),
             _ => false
         };
 
@@ -153,6 +161,10 @@ namespace TothBoost.Core.Known
                         SetDword(Hive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "IconsOnly", 1);
                         SetDword(Hive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarAnimations", 0);
                         report.Add(name, "applied", true);
+                        break;
+                    case TweakKind.NetworkThrottling:
+                        var netRes = NetworkOptimizer.SetNetworkThrottlingDisabled(true);
+                        report.Add(name, "applied", netRes.Success, netRes.Message);
                         break;
                 }
             }
@@ -209,6 +221,10 @@ namespace TothBoost.Core.Known
                         SetDword(Hive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "IconsOnly", 0);
                         SetDword(Hive.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarAnimations", 1);
                         report.Add(name, "reverted", true);
+                        break;
+                    case TweakKind.NetworkThrottling:
+                        var netRev = NetworkOptimizer.SetNetworkThrottlingDisabled(false);
+                        report.Add(name, "reverted", netRev.Success, netRev.Message);
                         break;
                 }
             }

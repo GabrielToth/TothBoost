@@ -144,6 +144,7 @@ namespace TothBoost.Core.Models
         BlackWallpaper,
         Transparency,
         Animations,
-        Thumbnails
+        Thumbnails,
+        NetworkThrottling
     }
 }

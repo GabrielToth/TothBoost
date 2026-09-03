@@ -182,6 +182,14 @@ namespace TothBoost.Core
 
         public List<StartupItem> GetStartups() => new StartupScanner().ScanAll();
 
+        public List<JunkCategoryInfo> ScanJunkFiles() => JunkCleaner.Scan();
+
+        public CleanResult CleanJunkFiles(IEnumerable<string>? categoryIds = null) => JunkCleaner.Clean(categoryIds);
+
+        public MemoryTrimResult TrimMemory() => MemoryOptimizer.TrimWorkingSet();
+
+        public NetworkActionResult FlushDns() => NetworkOptimizer.FlushDns();
+
         public List<TweakInfo> GetTweaks()
         {
             var all = TweakCatalog.All();

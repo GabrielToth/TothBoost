@@ -224,39 +224,61 @@ namespace TothBoost.App
 
         // ---------- Processes ----------
 
+        private bool _showSystemProcs;
+
         private void ProcSearch_TextChanged(object sender, TextChangedEventArgs e) => ApplyProcFilter();
+
+        private void BtnProcViewToggle_Click(object sender, RoutedEventArgs e)
+        {
+            _showSystemProcs = !_showSystemProcs;
+            ApplyProcFilter();
+        }
 
         private void ApplyProcFilter()
         {
             var q = ProcSearch.Text?.Trim().ToLowerInvariant() ?? "";
-            var userList = _procAll.Where(r => !r.IsProtected).ToList();
-            var sysList = _procAll.Where(r => r.IsProtected).ToList();
+
+            var list = _showSystemProcs
+                ? _procAll.Where(r => r.IsProtected).ToList()
+                : _procAll.Where(r => !r.IsProtected).ToList();
 
             if (!string.IsNullOrEmpty(q))
             {
-                userList = userList.Where(r => r.Name.ToLowerInvariant().Contains(q) || r.Pid.ToString().Contains(q)).ToList();
-                sysList = sysList.Where(r => r.Name.ToLowerInvariant().Contains(q) || r.Pid.ToString().Contains(q)).ToList();
+                list = list.Where(r => r.Name.ToLowerInvariant().Contains(q) || r.Pid.ToString().Contains(q)).ToList();
             }
 
-            GridProcesses.ItemsSource = userList;
-            GridProcSystem.ItemsSource = sysList;
-            ProcCount.Text = $"{userList.Count} user processes · {sysList.Count} system processes";
+            GridProcesses.ItemsSource = list;
+
+            if (_showSystemProcs)
+            {
+                BtnProcViewToggle.Content = "Switch to User Processes";
+                ProcViewHeader.Text = "SYSTEM PROCESSES — PROTECTED (view-only)";
+                ProcViewHeader.Foreground = System.Windows.Media.Brushes.Salmon;
+                ProcCount.Text = $"{list.Count} system processes";
+            }
+            else
+            {
+                BtnProcViewToggle.Content = "Switch to System Processes";
+                ProcViewHeader.Text = "USER PROCESSES — Safe to terminate or restart";
+                ProcViewHeader.Foreground = (System.Windows.Media.Brush)FindResource("Accent");
+                ProcCount.Text = $"{list.Count} user processes · {_procAll.Count(r => r.IsProtected)} system";
+            }
         }
 
         private async void BtnProcRefresh_Click(object sender, RoutedEventArgs e) => await RefreshProcesses();
 
         private void BtnProcSelectAll_Click(object sender, RoutedEventArgs e)
         {
-            var userList = _procAll.Where(r => !r.IsProtected).ToList();
-            var targetState = !userList.All(r => r.IsChecked);
+            var list = _procAll.Where(r => r.IsProtected == _showSystemProcs && !r.IsProtected).ToList();
+            var targetState = !list.All(r => r.IsChecked);
             int marked = 0;
-            foreach (var r in userList)
+            foreach (var r in list)
             {
                 r.IsChecked = targetState;
                 if (targetState) marked++;
             }
             StatusText.Text = marked > 0
-                ? $"{marked} process(es) checked. System protected processes excluded."
+                ? $"{marked} process(es) checked. Protected processes excluded."
                 : "No processes to check.";
         }
 
@@ -618,6 +640,43 @@ namespace TothBoost.App
         }
 
         // ---------- Tweaks ----------
+
+        private async void BtnCleanJunk_Click(object sender, RoutedEventArgs e)
+        {
+            await RunAction(() =>
+            {
+                var scan = _engine.ScanJunkFiles();
+                long totalBytes = scan.Sum(c => c.SizeBytes);
+                double totalMb = Math.Round(totalBytes / (1024.0 * 1024.0), 2);
+                
+                var cleanResult = _engine.CleanJunkFiles();
+                var report = new ActionReport();
+                report.Add("Junk & Temp Cleaning", "cleaned", true, $"Freed {cleanResult.TotalMbFreed} MB ({cleanResult.TotalFilesDeleted} files deleted)");
+                return report;
+            }, "Clean Junk & Temp Files");
+        }
+
+        private async void BtnTrimRam_Click(object sender, RoutedEventArgs e)
+        {
+            await RunAction(() =>
+            {
+                var res = _engine.TrimMemory();
+                var report = new ActionReport();
+                report.Add("RAM Working Set Trim", "trimmed", true, $"Freed {res.MbFreed} MB across {res.ProcessesTrimmed} processes");
+                return report;
+            }, "Free Up RAM (Trim Working Set)");
+        }
+
+        private async void BtnFlushDns_Click(object sender, RoutedEventArgs e)
+        {
+            await RunAction(() =>
+            {
+                var res = _engine.FlushDns();
+                var report = new ActionReport();
+                report.Add("Flush DNS Cache", "flushed", res.Success, res.Message);
+                return report;
+            }, "Flush DNS Cache");
+        }
 
         private async void TweakApply_Click(object sender, RoutedEventArgs e)
         {
