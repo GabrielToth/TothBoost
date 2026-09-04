@@ -69,8 +69,10 @@ namespace TothBoost.Core.Tests
                     try
                     {
                         _app = new TothBoost.App.App();
-                        var themeDict = (ResourceDictionary)Application.LoadComponent(new Uri("/TothBoost.App;component/Themes/Dark.xaml", UriKind.Relative));
-                        _app.Resources.MergedDictionaries.Add(themeDict);
+                        _app.Resources.MergedDictionaries.Add(new ResourceDictionary
+                        {
+                            Source = new Uri("pack://application:,,,/TothBoost;component/Themes/Dark.xaml", UriKind.Absolute)
+                        });
                     }
                     catch { }
                 });
