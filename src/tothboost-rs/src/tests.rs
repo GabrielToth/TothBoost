@@ -1,4 +1,5 @@
-use crate::models::{ActionReport, ProcessItem, RiskLevel, ServiceItem, TweakItem};
+use crate::elevation::ElevationManager;
+use crate::models::{ActionReport, RiskLevel};
 use crate::scanner::{SystemScanner, Win32Ops};
 use crate::tweaks::RegistryTweaks;
 
@@ -57,7 +58,11 @@ fn test_service_scanner() {
 #[test]
 fn test_junk_cleaner() {
     let (files, bytes) = Win32Ops::clean_junk();
-    // Non-failing verification of junk clean return types
     let _ = files;
     let _ = bytes;
+}
+
+#[test]
+fn test_elevation_check() {
+    let _is_admin = ElevationManager::is_elevated();
 }

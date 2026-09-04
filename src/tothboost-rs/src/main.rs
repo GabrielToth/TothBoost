@@ -1,5 +1,6 @@
 #![windows_subsystem = "windows"]
 
+mod elevation;
 mod models;
 mod scanner;
 mod tweaks;
@@ -7,6 +8,7 @@ mod tweaks;
 #[cfg(test)]
 mod tests;
 
+use elevation::ElevationManager;
 use scanner::{SystemScanner, Win32Ops};
 use tweaks::RegistryTweaks;
 use std::os::windows::ffi::OsStrExt;
@@ -23,6 +25,7 @@ const ID_BTN_TRIM_RAM: usize = 102;
 const ID_BTN_CLEAN_JUNK: usize = 103;
 const ID_BTN_SCAN_SERVICES: usize = 104;
 const ID_BTN_APPLY_TWEAKS: usize = 105;
+const ID_BTN_ELEVATE: usize = 106;
 
 static mut HWND_STATUS: HWND = HWND(null_mut());
 
@@ -41,15 +44,22 @@ fn main() -> Result<()> {
 
         RegisterClassW(&wc);
 
+        let is_admin = ElevationManager::is_elevated();
+        let title_str = format!(
+            "TothBoost - Native Win32 Optimizer v1.0 [{}]",
+            if is_admin { "ADMINISTRATOR" } else { "LIMITED USER" }
+        );
+        let title_wide = to_wide_null(&title_str);
+
         let hwnd = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             class_name,
-            w!("TothBoost - Native Win32 Optimizer v1.0"),
+            PCWSTR(title_wide.as_ptr()),
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             700,
-            450,
+            460,
             HWND::default(),
             HMENU::default(),
             instance,
@@ -119,17 +129,35 @@ fn main() -> Result<()> {
             None,
         )?;
 
+        if !is_admin {
+            CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("BUTTON"),
+                w!("🛡️ Relaunch as Admin"),
+                btn_style,
+                440, 75, 180, 40,
+                hwnd,
+                HMENU(ID_BTN_ELEVATE as *mut _),
+                instance,
+                None,
+            )?;
+        }
+
         HWND_STATUS = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             w!("STATIC"),
             w!("Ready. Select an action above."),
             WS_VISIBLE | WS_CHILD,
-            20, 130, 640, 260,
+            20, 135, 640, 260,
             hwnd,
             HMENU::default(),
             instance,
             None,
         )?;
+
+        if !is_admin {
+            set_status_text("⚠️ WARNING: Running as standard user. Some tweaks (Registry, HKLM) require Administrator elevation.\nClick '🛡️ Relaunch as Admin' to grant full performance capabilities.");
+        }
 
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, HWND::default(), 0, 0).into() {
@@ -215,6 +243,11 @@ unsafe extern "system" fn wnd_proc(
                         text.push_str(&format!("• {}\n", msg));
                     }
                     set_status_text(&text);
+                }
+                ID_BTN_ELEVATE => {
+                    if let Err(e) = ElevationManager::relaunch_as_admin() {
+                        set_status_text(&format!("Elevation failed: {}", e));
+                    }
                 }
                 _ => {}
             }
