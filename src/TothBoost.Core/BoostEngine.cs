@@ -37,6 +37,7 @@ namespace TothBoost.Core
             }
 
             EnsureBaseline();
+            ShortcutManager.CreateStartMenuShortcut();
             return (rpOk, rpMsg);
         }
 
@@ -49,6 +50,8 @@ namespace TothBoost.Core
             SnapshotService.EnsureBaseline(services, tasks, startups);
             SaveCapture("Default");
         }
+
+        public System.Threading.Tasks.Task<UpdateCheckResult> CheckForUpdatesAsync() => UpdateChecker.CheckForUpdatesAsync();
 
         public string CurrentProfileName => ProfileService.CurrentName() ?? "Default";
 

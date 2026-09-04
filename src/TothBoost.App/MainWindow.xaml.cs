@@ -83,6 +83,9 @@ namespace TothBoost.App
             TaskFilter.ItemsSource = new[] { "All", "Enabled", "Disabled" };
             TaskFilter.SelectedIndex = 0;
 
+            ShortcutManager.CreateStartMenuShortcut();
+            _ = AutoCheckUpdateSilentAsync();
+
             await RefreshAll();
             RefreshProfilesUi();
             StatusText.Text = "TothBoost ready. Default baseline loaded.";
@@ -637,6 +640,68 @@ namespace TothBoost.App
                 catch (Exception ex) { report.AddError(r.Name, "toggle task", ex); }
                 return report;
             }, enable ? "Enable Task" : "Disable Task");
+        }
+
+        // ---------- Updates ----------
+
+        private async Task AutoCheckUpdateSilentAsync()
+        {
+            try
+            {
+                var update = await _engine.CheckForUpdatesAsync();
+                if (update.HasUpdate)
+                {
+                    BtnCheckUpdate.Content = $"🎉 Update v{update.LatestVersion} Available!";
+                    BtnCheckUpdate.Style = (Style)FindResource("BtnGreen");
+
+                    var choice = MessageBox.Show(
+                        $"A new version of TothBoost (v{update.LatestVersion}) is available!\n\n" +
+                        $"Current version: v{update.CurrentVersion}\n\n" +
+                        $"Would you like to open the download page?",
+                        "Update Available", MessageBoxButton.YesNo, MessageBoxImage.Information);
+
+                    if (choice == MessageBoxResult.Yes && !string.IsNullOrEmpty(update.ReleaseUrl))
+                    {
+                        Process.Start(new ProcessStartInfo(update.ReleaseUrl) { UseShellExecute = true });
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private async void BtnCheckUpdate_Click(object sender, RoutedEventArgs e)
+        {
+            BtnCheckUpdate.Content = "Checking...";
+            var update = await _engine.CheckForUpdatesAsync();
+
+            if (!string.IsNullOrEmpty(update.ErrorMessage))
+            {
+                MessageBox.Show(update.ErrorMessage, "Update Check", MessageBoxButton.OK, MessageBoxImage.Warning);
+                BtnCheckUpdate.Content = "🔄 Check Updates";
+                return;
+            }
+
+            if (update.HasUpdate)
+            {
+                BtnCheckUpdate.Content = $"🎉 Update v{update.LatestVersion} Available!";
+                BtnCheckUpdate.Style = (Style)FindResource("BtnGreen");
+
+                var res = MessageBox.Show(
+                    $"New version v{update.LatestVersion} is available!\n\n" +
+                    $"Release notes:\n{update.ReleaseNotes}\n\n" +
+                    $"Open download page now?",
+                    "Update Available", MessageBoxButton.YesNo, MessageBoxImage.Information);
+
+                if (res == MessageBoxResult.Yes && !string.IsNullOrEmpty(update.ReleaseUrl))
+                {
+                    Process.Start(new ProcessStartInfo(update.ReleaseUrl) { UseShellExecute = true });
+                }
+            }
+            else
+            {
+                BtnCheckUpdate.Content = "🔄 Check Updates";
+                MessageBox.Show($"You are running the latest version of TothBoost (v{update.CurrentVersion}).", "Up to Date", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
         }
 
         // ---------- Tweaks ----------
