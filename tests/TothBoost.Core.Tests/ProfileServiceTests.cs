@@ -24,7 +24,7 @@ namespace TothBoost.Core.Tests
             var testProfile = "Profile/With\\Invalid:Chars*";
             var meta = ProfileService.Create(testProfile);
             Assert.NotNull(meta);
-            Assert.False(meta.Name.Contains("/"));
+            Assert.DoesNotContain("/", meta.Name);
         }
 
         [Fact]

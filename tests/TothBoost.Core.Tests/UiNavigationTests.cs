@@ -34,6 +34,7 @@ namespace TothBoost.Core.Tests
         [Fact]
         public void MainWindow_Constructs_WithoutResourceCrash()
         {
+            _fx.EnsureApp();
             Exception? ex = null;
             var thread = new Thread(() =>
             {
@@ -57,20 +58,25 @@ namespace TothBoost.Core.Tests
     {
         private readonly object _lock = new();
         private TothBoost.App.App? _app;
-        private ResourceDictionary? _theme;
 
-        private void EnsureApp()
+        public void EnsureApp()
         {
             lock (_lock)
             {
-                if (_app != null) return;
-                _app = new TothBoost.App.App();
-                _app.InitializeComponent(); // merges App.xaml -> Themes/Dark.xaml
-                foreach (var d in _app.Resources.MergedDictionaries)
+                if (Application.Current != null) return;
+                var thread = new Thread(() =>
                 {
-                    _theme = d;
-                    break;
-                }
+                    try
+                    {
+                        _app = new TothBoost.App.App();
+                        var themeDict = (ResourceDictionary)Application.LoadComponent(new Uri("/TothBoost.App;component/Themes/Dark.xaml", UriKind.Relative));
+                        _app.Resources.MergedDictionaries.Add(themeDict);
+                    }
+                    catch { }
+                });
+                thread.SetApartmentState(ApartmentState.STA);
+                thread.Start();
+                thread.Join();
             }
         }
 
@@ -80,7 +86,7 @@ namespace TothBoost.Core.Tests
             var missing = new List<string>();
             foreach (var k in keys)
             {
-                if (!(_app!.TryFindResource(k) is not null))
+                if (!(Application.Current?.TryFindResource(k) is not null))
                 {
                     missing.Add(k);
                 }
