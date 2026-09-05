@@ -42,14 +42,22 @@ fn main() -> Result<()> {
         let class_name = w!("TothBoostClass");
 
         let wc = WNDCLASSW {
+            style: CS_HREDRAW | CS_VREDRAW,
             lpfnWndProc: Some(wnd_proc),
             hInstance: instance.into(),
             lpszClassName: class_name,
             hbrBackground: HBRUSH((COLOR_WINDOW.0 + 1) as *mut std::ffi::c_void),
+            hCursor: LoadCursorW(HMODULE::default(), IDC_ARROW)?,
             ..Default::default()
         };
 
-        RegisterClassW(&wc);
+        if RegisterClassW(&wc) == 0 {
+            let err = GetLastError();
+            // 1410 = ERROR_CLASS_ALREADY_EXISTS, which is okay if re-registered
+            if err.0 != 1410 {
+                return Err(Error::from_win32());
+            }
+        }
 
         let is_admin = ElevationManager::is_elevated();
         let title_str = format!(
@@ -72,6 +80,10 @@ fn main() -> Result<()> {
             instance,
             None,
         )?;
+
+        if hwnd.0.is_null() {
+            return Err(Error::from_win32());
+        }
 
         let btn_style = WS_VISIBLE | WS_CHILD | WINDOW_STYLE(BS_PUSHBUTTON as u32);
 
@@ -204,8 +216,11 @@ fn main() -> Result<()> {
             set_status_text("⚠️ WARNING: Running as standard user. Some tweaks (Registry, Services, Power Plan) require Administrator elevation.\nClick '🛡️ Relaunch as Admin' to grant full performance capabilities.");
         }
 
+        ShowWindow(hwnd, SW_SHOW);
+        let _ = UpdateWindow(hwnd);
+
         let mut msg = MSG::default();
-        while GetMessageW(&mut msg, HWND::default(), 0, 0).into() {
+        while GetMessageW(&mut msg, HWND::default(), 0, 0).as_bool() {
             let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
@@ -219,7 +234,7 @@ fn to_wide_null(s: &str) -> Vec<u16> {
 
 fn set_status_text(text: &str) {
     unsafe {
-        if HWND_STATUS.0 != null_mut() {
+        if !HWND_STATUS.0.is_null() {
             let wide = to_wide_null(text);
             let _ = SetWindowTextW(HWND_STATUS, PCWSTR(wide.as_ptr()));
         }
