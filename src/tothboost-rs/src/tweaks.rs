@@ -1,4 +1,4 @@
-use crate::models::{ActionReport, TweakItem};
+use crate::models::TweakItem;
 use windows::core::*;
 use windows::Win32::System::Registry::*;
 
@@ -8,79 +8,77 @@ impl RegistryTweaks {
     pub fn get_available_tweaks() -> Vec<TweakItem> {
         vec![
             TweakItem {
-                id: "gamedvr".into(),
-                name: "Disable Windows GameDVR & Game Bar".into(),
-                description: "Stops background screen recording and overlay overhead".into(),
-                category: "Performance".into(),
+                id: "GameDvr".into(),
+                name: "Disable Background Recording (Game DVR)".into(),
+                description: "Prevents Xbox Game Bar from recording video/audio in background, freeing up CPU and GPU.".into(),
+                category: "Gaming".into(),
                 is_applied: false,
             },
             TweakItem {
-                id: "net_throttling".into(),
-                name: "Disable Network Throttling".into(),
-                description: "Sets NetworkThrottlingIndex to 0xFFFFFFFF for minimum ping".into(),
-                category: "Network".into(),
+                id: "VisualEffects".into(),
+                name: "Visuals: Best Performance".into(),
+                description: "Disables system animations, transparency, and visual effects (reduces GPU/CPU workload).".into(),
+                category: "Visual".into(),
                 is_applied: false,
             },
             TweakItem {
-                id: "telemetry".into(),
-                name: "Disable Windows Telemetry".into(),
-                description: "Disables AllowTelemetry & DiagTrack overhead".into(),
-                category: "Privacy & CPU".into(),
+                id: "Telemetry".into(),
+                name: "Telemetry: Reduce Data Collection".into(),
+                description: "Sets AllowTelemetry = 0 via local policies. Reversible at any time.".into(),
+                category: "Privacy".into(),
                 is_applied: false,
             },
             TweakItem {
-                id: "system_responsiveness".into(),
-                name: "Set System Responsiveness to 0".into(),
-                description: "Prioritizes gaming network packets over background tasks".into(),
-                category: "Network".into(),
+                id: "Hibernate".into(),
+                name: "Disable Hibernation".into(),
+                description: "Removes hibernation file (hiberfil.sys) and frees up disk space. Note: PC will not hibernate.".into(),
+                category: "Power".into(),
+                is_applied: false,
+            },
+            TweakItem {
+                id: "UltimatePower".into(),
+                name: "Power Plan: Ultimate Performance".into(),
+                description: "Unlocks and activates Microsoft's 'Ultimate Performance' power plan for maximum FPS.".into(),
+                category: "Power".into(),
+                is_applied: false,
+            },
+            TweakItem {
+                id: "HighPerformance".into(),
+                name: "Power Plan: High Performance".into(),
+                description: "Activates standard Windows High Performance scheme.".into(),
+                category: "Power".into(),
                 is_applied: false,
             },
         ]
     }
 
-    pub fn apply_all() -> ActionReport {
-        let mut report = ActionReport::default();
-        let tweaks = Self::get_available_tweaks();
-        for tweak in tweaks {
-            let res = Self::apply_tweak(&tweak.id);
-            report.add(&tweak.name, "Apply Tweak", res.is_ok(), &res.err().unwrap_or("Applied successfully".into()));
-        }
-        report
-    }
-
     pub fn apply_tweak(id: &str) -> std::result::Result<String, String> {
         match id {
-            "gamedvr" => {
+            "GameDvr" => {
                 Self::set_dword(HKEY_CURRENT_USER, w!("System\\GameConfigStore"), w!("GameDVR_Enabled"), 0)?;
                 Self::set_dword(HKEY_LOCAL_MACHINE, w!("SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR"), w!("AllowGameDVR"), 0)?;
-                Ok("Disabled GameDVR".into())
+                Ok("Disabled GameDVR background recording".into())
             }
-            "net_throttling" => {
-                Self::set_dword(
-                    HKEY_LOCAL_MACHINE,
-                    w!("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile"),
-                    w!("NetworkThrottlingIndex"),
-                    0xffffffff,
-                )?;
-                Ok("Disabled Network Throttling".into())
+            "VisualEffects" => {
+                Self::set_dword(HKEY_CURRENT_USER, w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects"), w!("VisualFXSetting"), 2)?;
+                Ok("Set Visual Effects to Best Performance".into())
             }
-            "telemetry" => {
-                Self::set_dword(
-                    HKEY_LOCAL_MACHINE,
-                    w!("SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection"),
-                    w!("AllowTelemetry"),
-                    0,
-                )?;
-                Ok("Disabled Telemetry".into())
+            "Telemetry" => {
+                Self::set_dword(HKEY_LOCAL_MACHINE, w!("SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection"), w!("AllowTelemetry"), 0)?;
+                Ok("Reduced Telemetry collection".into())
             }
-            "system_responsiveness" => {
-                Self::set_dword(
-                    HKEY_LOCAL_MACHINE,
-                    w!("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile"),
-                    w!("SystemResponsiveness"),
-                    0,
-                )?;
-                Ok("Set System Responsiveness to 0".into())
+            "Hibernate" => {
+                let _ = std::process::Command::new("powercfg").args(&["-h", "off"]).output();
+                Ok("Disabled Hibernation".into())
+            }
+            "UltimatePower" => {
+                let _ = std::process::Command::new("powercfg").args(&["-duplicatescheme", "e9a42b02-d5df-448d-aa00-03f14749eb61"]).output();
+                let _ = std::process::Command::new("powercfg").args(&["-setactive", "e9a42b02-d5df-448d-aa00-03f14749eb61"]).output();
+                Ok("Activated Ultimate Performance Power Plan".into())
+            }
+            "HighPerformance" => {
+                let _ = std::process::Command::new("powercfg").args(&["-setactive", "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c"]).output();
+                Ok("Activated High Performance Power Plan".into())
             }
             _ => Err("Unknown tweak ID".into()),
         }
@@ -111,7 +109,7 @@ impl RegistryTweaks {
                     Err(format!("RegSetValueExW failed with code {}", res.0))
                 }
             } else {
-                Err("Failed to open or create registry key (admin required)".into())
+                Err("Failed to open registry key (admin required)".into())
             }
         }
     }
