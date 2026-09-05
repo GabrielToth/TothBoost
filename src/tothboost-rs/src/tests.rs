@@ -1,6 +1,8 @@
 use crate::elevation::ElevationManager;
 use crate::models::{ActionReport, RiskLevel};
+use crate::power::{NetworkManager, PowerManager, ProcessController};
 use crate::scanner::{SystemScanner, Win32Ops};
+use crate::service::ServiceController;
 use crate::tweaks::RegistryTweaks;
 
 #[test]
@@ -65,4 +67,31 @@ fn test_junk_cleaner() {
 #[test]
 fn test_elevation_check() {
     let _is_admin = ElevationManager::is_elevated();
+}
+
+#[test]
+fn test_gaming_safe_services_list() {
+    let list = ServiceController::gaming_safe_services();
+    assert!(!list.is_empty());
+    assert!(list.contains(&"SysMain"));
+    assert!(list.contains(&"WSearch"));
+}
+
+#[test]
+fn test_process_terminate_protection() {
+    // Attempting to terminate PID < 100 should return Err
+    assert!(ProcessController::terminate_process(0).is_err());
+    assert!(ProcessController::terminate_process(4).is_err());
+}
+
+#[test]
+fn test_network_flush_dns() {
+    let res = NetworkManager::flush_dns();
+    assert!(res.is_ok(), "DNS flush command should succeed on Windows");
+}
+
+#[test]
+fn test_power_active_scheme() {
+    let scheme = PowerManager::get_active_scheme();
+    assert!(scheme.is_ok(), "Power active scheme query should return GUID");
 }
