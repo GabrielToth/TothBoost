@@ -39,13 +39,39 @@ impl ElevationManager {
                     Ok(p) => p,
                     Err(_) => std::process::exit(1),
                 };
-                let exe_wide: Vec<u16> = exe_path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+                let exe_wide: Vec<u16> = exe_path
+                    .as_os_str()
+                    .encode_wide()
+                    .chain(std::iter::once(0))
+                    .collect();
+
+                // Preserve command-line arguments when re-launching elevated so
+                // flags such as --self-test keep working after the UAC step.
+                let parameters: Vec<u16> = std::env::args()
+                    .skip(1)
+                    .map(|a| {
+                        if a.contains(' ') {
+                            format!("\"{}\"", a)
+                        } else {
+                            a
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .encode_utf16()
+                    .chain(std::iter::once(0))
+                    .collect();
+                let parameters_ptr = if parameters.len() > 1 {
+                    PCWSTR(parameters.as_ptr())
+                } else {
+                    PCWSTR::null()
+                };
 
                 let res = ShellExecuteW(
                     HWND::default(),
                     w!("runas"),
                     PCWSTR(exe_wide.as_ptr()),
-                    PCWSTR::null(),
+                    parameters_ptr,
                     PCWSTR::null(),
                     SW_SHOWNORMAL,
                 );

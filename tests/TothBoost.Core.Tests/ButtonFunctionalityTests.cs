@@ -86,7 +86,7 @@ namespace TothBoost.Core.Tests
             RunOnSta(win =>
             {
                 var selectAllBtn = win.FindName("BtnStartupSelectAll") as Button;
-                var grid = win.FindName("GridStartup") as DataGrid;
+                var grid = win.FindName("GridStartups") as DataGrid;
                 Assert.NotNull(selectAllBtn);
                 Assert.NotNull(grid);
 
@@ -144,8 +144,8 @@ namespace TothBoost.Core.Tests
 
                 var fakeList = new List<SvcRow>
                 {
-                    new SvcRow(new ServiceInfo { Name = "NormalSvc", Risk = RiskLevel.Recommended }),
-                    new SvcRow(new ServiceInfo { Name = "CriticalSvc", Risk = RiskLevel.Protected })
+                    new SvcRow(new ServiceInfo { Name = "NormalSvc", Risk = RiskLevel.Recommended, TypeKind = ServiceTypeKind.OwnProcess }),
+                    new SvcRow(new ServiceInfo { Name = "CriticalSvc", Risk = RiskLevel.Protected, TypeKind = ServiceTypeKind.OwnProcess })
                 };
                 grid.ItemsSource = fakeList;
 

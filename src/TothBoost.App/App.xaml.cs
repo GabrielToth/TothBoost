@@ -23,6 +23,14 @@ namespace TothBoost.App
                 return;
             }
 
+            if (e.Args.Any(a => a.Equals("--self-test", StringComparison.OrdinalIgnoreCase)))
+            {
+                var code = RunSelfTest(e.Args);
+                Shutdown(code);
+                Environment.Exit(code);
+                return;
+            }
+
             _mutex = new Mutex(true, @"Global\TothBoost_SingleInstance", out var createdNew);
             if (!createdNew)
             {
@@ -60,6 +68,67 @@ namespace TothBoost.App
                     $"===== {DateTime.Now:u} =====" + Environment.NewLine + ex + Environment.NewLine);
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Headless self-test (--self-test [logPath]): verifies the process really
+        /// has an elevated administrator token and that the main window can be
+        /// created and shown. Performs no system modifications. Exit code 0 = PASS.
+        /// </summary>
+        private static int RunSelfTest(string[] args)
+        {
+            var idx = Array.FindIndex(args, a => a.Equals("--self-test", StringComparison.OrdinalIgnoreCase));
+            var logPath = idx >= 0 && idx + 1 < args.Length
+                ? args[idx + 1]
+                : Path.Combine(Path.GetTempPath(), "tothboost-dotnet-selftest.log");
+
+            var lines = new List<string> { "TOTHBOOST .NET SELF-TEST " + DateTime.Now.ToString("u") };
+            var ok = true;
+            void Check(string name, bool condition, string detail = "")
+            {
+                if (!condition) ok = false;
+                lines.Add($"{name}={(condition ? "OK" : "FAIL")}{(string.IsNullOrEmpty(detail) ? "" : "  " + detail)}");
+            }
+
+            try
+            {
+                Check("ELEVATED", Elevation.IsElevated,
+                    "identity=" + System.Security.Principal.WindowsIdentity.GetCurrent().Name);
+                Check("VERSION", !string.IsNullOrEmpty(UpdateChecker.GetCurrentVersion()),
+                    UpdateChecker.GetCurrentVersion());
+
+                var win = new MainWindow(selfTest: true)
+                {
+                    ShowInTaskbar = false,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = -32000,
+                    Top = -32000,
+                    Width = 900,
+                    Height = 640
+                };
+                win.Show();
+                win.UpdateLayout();
+                var handle = new System.Windows.Interop.WindowInteropHelper(win).Handle;
+                Check("WINDOW_HANDLE", handle != IntPtr.Zero);
+                Check("WINDOW_VISIBLE", win.IsVisible);
+                Check("WINDOW_TITLE", !string.IsNullOrWhiteSpace(win.Title), win.Title);
+                Check("DARK_THEME", win.FindResource("Bg0") is not null);
+                win.Close();
+            }
+            catch (Exception ex)
+            {
+                ok = false;
+                lines.Add("EXCEPTION=" + ex);
+            }
+
+            lines.Add("RESULT=" + (ok ? "PASS" : "FAIL"));
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(logPath) ?? Path.GetTempPath());
+                File.WriteAllLines(logPath, lines);
+            }
+            catch { }
+            return ok ? 0 : 1;
         }
 
         /// <summary>

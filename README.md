@@ -41,12 +41,24 @@ For enthusiasts demanding absolute zero overhead and maximum gaming FPS:
 
 ## 🚀 Building & Testing
 
+### One-command verification (recommended)
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1
+```
+This runs every unit/UI test, builds both release binaries, publishes the
+self-contained .NET app, then launches each executable with `--self-test` to
+prove that it **really starts elevated and opens its window**. Any failure
+returns a non-zero exit code.
+
 ### Rust Native Version (`src/tothboost-rs`)
 ```powershell
 cd src/tothboost-rs
 cargo test
 cargo build --release
 ```
+On machines without the Visual Studio C++ build tools, use
+`cargo +stable-x86_64-pc-windows-gnu test` / `build`. `scripts/verify.ps1`
+selects the GNU toolchain automatically.
 
 ### .NET 10 WPF Version (`src/TothBoost.App`)
 ```powershell
@@ -54,11 +66,33 @@ dotnet test tests/TothBoost.Core.Tests/TothBoost.Core.Tests.csproj
 dotnet build -c Release
 ```
 
+### Privilege requirements
+- The .NET app embeds `requireAdministrator` in `app.manifest`, so Windows
+  always elevates it before any UI is created.
+- The native Rust app checks its own token and re-launches itself through UAC
+  (`runas`), preserving command-line arguments.
+- `--self-test [logPath]` is available in both apps for automated verification.
+  It checks the administrator token, creates/shows the main window, writes a
+  `RESULT=PASS` log, and exits without modifying the system.
+
 ---
 
 ## ⚙️ CI/CD Pipeline
 
-Automated builds and tests are executed on Windows Runners via GitHub Actions (`.github/workflows/ci-cd.yml`):
-- Executes all Rust unit tests (`cargo test`).
-- Compiles the release binary (`cargo build --release`).
-- Automatically attaches `tothboost.exe` as a release build artifact.
+GitHub Actions (`.github/workflows/ci-cd.yml`) runs on every push/PR to `main`,
+on `v*` tags, and on manual dispatch:
+
+1. **Test job** — restores and runs all .NET unit/UI tests (`dotnet test`) and
+   all native tests (`cargo test`) on `windows-latest`.
+2. **Release job** (push to `main`, tags, or manual run) — only runs if tests
+   pass:
+   - publishes the self-contained .NET app and builds the Rust release binary;
+   - runs both `--self-test` smoke checks to confirm elevation + window opening;
+   - packages `TothBoost-<version>-windows-x64.zip` and
+     `TothBoost-Rust-<version>-windows-x64.zip`;
+   - creates/updates GitHub Release `v<version>` and marks it as **latest**.
+
+Versions on `main` are generated as `1.0.<run_number>` (and the assembly version
+is stamped to match, so the in-app update checker sees the newest release).
+Pushing a `v*` tag publishes that exact tag instead.
+

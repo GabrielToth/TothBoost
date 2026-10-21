@@ -1,31 +1,152 @@
-name: Build & Test Native Rust TothBoost
+name: Build, Test & Release TothBoost
 
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: tothboost-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  build-and-test:
+  test:
+    name: Test (.NET + Rust)
     runs-on: windows-latest
+    timeout-minutes: 30
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up .NET 10
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
 
     - name: Set up Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Cargo Test (Rust Native)
+    - name: Restore .NET dependencies
+      run: dotnet restore tests/TothBoost.Core.Tests/TothBoost.Core.Tests.csproj
+
+    - name: .NET unit and UI tests
+      run: dotnet test tests/TothBoost.Core.Tests/TothBoost.Core.Tests.csproj -c Release --no-restore --verbosity normal
+
+    - name: Rust native tests
       working-directory: ./src/tothboost-rs
       run: cargo test --verbose
 
-    - name: Build Release Binary
+  release:
+    name: Publish GitHub Release
+    needs: test
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: windows-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up .NET 10
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Compute release version
+      id: version
+      shell: pwsh
+      run: |
+        if ($env:GITHUB_REF -like 'refs/tags/v*') {
+          $tag = $env:GITHUB_REF_NAME
+          $version = $tag.TrimStart('v')
+        } else {
+          $version = "1.0.${{ github.run_number }}"
+          $tag = "v$version"
+        }
+        "version=$version" >> $env:GITHUB_OUTPUT
+        "tag=$tag" >> $env:GITHUB_OUTPUT
+        Write-Host "Releasing $tag (assembly version $version)"
+
+    - name: Publish .NET WPF app (self-contained, single file)
+      shell: pwsh
+      run: |
+        dotnet publish src/TothBoost.App/TothBoost.App.csproj `
+          -c Release -r win-x64 --self-contained true `
+          -p:PublishSingleFile=true `
+          -p:Version=${{ steps.version.outputs.version }} `
+          -p:AssemblyVersion=${{ steps.version.outputs.version }}.0 `
+          -p:FileVersion=${{ steps.version.outputs.version }}.0 `
+          -o dist/dotnet
+
+    - name: Build Rust native app
       working-directory: ./src/tothboost-rs
       run: cargo build --release --verbose
 
-    - name: Upload Binary Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: TothBoost-Rust-Win32-x64
-        path: src/tothboost-rs/target/release/tothboost.exe
+    - name: Verify both apps start elevated and open their window
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+
+        $dotnetLog = Join-Path $env:RUNNER_TEMP 'dotnet-selftest.log'
+        $p = Start-Process -FilePath 'dist/dotnet/TothBoost.exe' `
+          -ArgumentList '--self-test', $dotnetLog -Verb RunAs -Wait -PassThru
+        if (Test-Path $dotnetLog) { Get-Content $dotnetLog }
+        if ($p.ExitCode -ne 0 -or -not (Test-Path $dotnetLog) -or -not (Select-String -Path $dotnetLog -Pattern 'RESULT=PASS' -Quiet)) {
+          throw "TothBoost .NET self-test failed (exit $($p.ExitCode))."
+        }
+
+        $rustLog = Join-Path $env:TEMP 'tothboost-rust-selftest.log'
+        Remove-Item $rustLog -ErrorAction SilentlyContinue
+        Start-Process -FilePath 'src/tothboost-rs/target/release/tothboost.exe' `
+          -ArgumentList '--self-test' -Verb RunAs -Wait | Out-Null
+        for ($i = 0; $i -lt 20 -and -not (Test-Path $rustLog); $i++) { Start-Sleep -Milliseconds 250 }
+        if (Test-Path $rustLog) { Get-Content $rustLog }
+        if (-not (Test-Path $rustLog) -or -not (Select-String -Path $rustLog -Pattern 'RESULT=PASS' -Quiet)) {
+          throw 'TothBoost native self-test failed.'
+        }
+
+    - name: Package release artifacts
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force dist/rust | Out-Null
+        Copy-Item src/tothboost-rs/target/release/tothboost.exe dist/rust/TothBoost-Rust.exe
+        Copy-Item README.md dist/dotnet/README.md
+        Copy-Item README.md dist/rust/README.md
+
+        $version = '${{ steps.version.outputs.version }}'
+        Compress-Archive -Path dist/dotnet/* -DestinationPath "dist/TothBoost-$version-windows-x64.zip" -Force
+        Compress-Archive -Path dist/rust/* -DestinationPath "dist/TothBoost-Rust-$version-windows-x64.zip" -Force
+
+        Get-ChildItem dist -Filter *.zip | Select-Object Name, Length
+
+    - name: Create or update GitHub Release
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        $tag = '${{ steps.version.outputs.tag }}'
+        $version = '${{ steps.version.outputs.version }}'
+        $assets = @(Get-ChildItem dist -Filter *.zip | ForEach-Object { $_.FullName })
+
+        # Re-running the same build (workflow_dispatch) must not fail: replace assets.
+        gh release view $tag *> $null
+        if ($LASTEXITCODE -eq 0) {
+          gh release upload $tag @assets --clobber
+        } else {
+          gh release create $tag @assets `
+            --title "TothBoost $tag" `
+            --notes "Automated build of TothBoost v$version (commit $env:GITHUB_SHA).`n`n- TothBoost-$version-windows-x64.zip: full .NET 10 WPF app, self-contained (always requests Administrator).`n- TothBoost-Rust-$version-windows-x64.zip: native Win32/Rust engine (auto-elevates via UAC)." `
+            --latest
+        }

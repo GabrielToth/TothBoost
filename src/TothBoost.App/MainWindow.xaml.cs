@@ -26,10 +26,14 @@ namespace TothBoost.App
         private readonly ObservableCollection<StartupRow> _startupAll = new();
         private readonly ObservableCollection<TweakRow> _tweakAll = new();
         private bool _busy;
+        private readonly bool _selfTest;
         private readonly DispatcherTimer _procTimer = new() { Interval = TimeSpan.FromSeconds(2) };
 
-        public MainWindow()
+        public MainWindow() : this(false) { }
+
+        public MainWindow(bool selfTest)
         {
+            _selfTest = selfTest;
             _procTimer.Tick += async (_, _) => await AutoRefreshProcesses();
             InitializeComponent();
             Loaded += OnLoaded;
@@ -57,6 +61,8 @@ namespace TothBoost.App
 
         private async void OnLoaded(object sender, RoutedEventArgs e)
         {
+            if (_selfTest) return;
+
             if (!_engine.IsInitialized)
             {
                 StatusText.Text = "First run: Creating Windows Restore Point and baseline profile...";
@@ -272,10 +278,12 @@ namespace TothBoost.App
 
         private void BtnProcSelectAll_Click(object sender, RoutedEventArgs e)
         {
-            var list = _procAll.Where(r => r.IsProtected == _showSystemProcs && !r.IsProtected).ToList();
-            var targetState = !list.All(r => r.IsChecked);
+            var list = (GridProcesses.ItemsSource as IEnumerable<ProcRow>)?.ToList()
+                       ?? _procAll.Where(r => !r.IsProtected).ToList();
+            var selectable = list.Where(r => !r.IsProtected).ToList();
+            var targetState = !selectable.All(r => r.IsChecked);
             int marked = 0;
-            foreach (var r in list)
+            foreach (var r in selectable)
             {
                 r.IsChecked = targetState;
                 if (targetState) marked++;
@@ -481,6 +489,22 @@ namespace TothBoost.App
 
         private void SvcSearch_TextChanged(object sender, TextChangedEventArgs e) => ApplySvcFilter();
         private void SvcFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplySvcFilter();
+
+        private void BtnSvcFilterGaming_Click(object sender, RoutedEventArgs e) => SvcFilter.SelectedIndex = 1;
+        private void BtnSvcFilterWarn_Click(object sender, RoutedEventArgs e) => SvcFilter.SelectedIndex = 3;
+        private void BtnSvcFilterOpt_Click(object sender, RoutedEventArgs e) => SvcFilter.SelectedIndex = 4;
+        private void BtnSvcFilterAll_Click(object sender, RoutedEventArgs e) => SvcFilter.SelectedIndex = 0;
+
+        private void BtnSvcSelectAll_Click(object sender, RoutedEventArgs e)
+        {
+            var list = (GridServices.ItemsSource as IEnumerable<SvcRow>)?.ToList() ?? _svcAll.ToList();
+            var selectable = list.Where(r => r.CanTouch).ToList();
+            var targetState = !selectable.All(r => r.IsChecked);
+            foreach (var r in selectable) r.IsChecked = targetState;
+            StatusText.Text = targetState
+                ? $"{selectable.Count} service(s) checked. Protected services excluded."
+                : "No services selected.";
+        }
 
         private void ApplySvcFilter()
         {

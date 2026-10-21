@@ -160,6 +160,12 @@
                             <ComboBox x:Name="SvcFilter" Width="190" Margin="10,0,0,0" SelectionChanged="SvcFilter_SelectionChanged"/>
                             <TextBlock x:Name="SvcCount" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource TextDim}" FontSize="12"/>
                             <Separator Width="24"/>
+                            <Button x:Name="BtnSvcFilterGaming" Style="{StaticResource BtnPrimary}" Content="Gaming" Click="BtnSvcFilterGaming_Click" ToolTip="Show services recommended for gaming"/>
+                            <Button x:Name="BtnSvcFilterWarn" Style="{StaticResource BtnPrimary}" Content="Caution" Click="BtnSvcFilterWarn_Click" ToolTip="Show services that require caution"/>
+                            <Button x:Name="BtnSvcFilterOpt" Style="{StaticResource BtnPrimary}" Content="Optional" Click="BtnSvcFilterOpt_Click" ToolTip="Show optional services"/>
+                            <Button x:Name="BtnSvcFilterAll" Style="{StaticResource BtnPrimary}" Content="All" Click="BtnSvcFilterAll_Click" ToolTip="Show all services"/>
+                            <Separator Width="16"/>
+                            <Button x:Name="BtnSvcSelectAll" Style="{StaticResource BtnPrimary}" Content="Select All (Editable)" Click="BtnSvcSelectAll_Click" ToolTip="Selects all visible non-protected services"/>
                             <Button x:Name="BtnSvcApplyGame" Style="{StaticResource BtnGreen}" Content="Apply Gaming Profile (1-Click)" Click="BtnSvcApplyGame_Click" ToolTip="Disables all recommended non-essential services for gaming"/>
                             <Button x:Name="BtnSvcRestoreBaseline" Style="{StaticResource BtnPrimary}" Content="Restore Baseline State" Click="BtnSvcRestoreBaseline_Click" ToolTip="Restores original service baseline"/>
                             <Separator Width="16"/>
