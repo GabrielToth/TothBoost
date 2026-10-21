@@ -43,10 +43,9 @@ jobs:
       working-directory: ./src/tothboost-rs
       run: cargo test --verbose
 
-  release:
-    name: Publish GitHub Release
+  build-windows:
+    name: Build Windows binaries (.NET + Rust)
     needs: test
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: windows-latest
     timeout-minutes: 40
     permissions:
@@ -64,7 +63,7 @@ jobs:
     - name: Set up Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Compute release version
+    - name: Compute build version
       id: version
       shell: pwsh
       run: |
@@ -77,7 +76,7 @@ jobs:
         }
         "version=$version" >> $env:GITHUB_OUTPUT
         "tag=$tag" >> $env:GITHUB_OUTPUT
-        Write-Host "Releasing $tag (assembly version $version)"
+        Write-Host "Building Windows binaries $tag (assembly version $version)"
 
     - name: Publish .NET WPF app (self-contained, single file)
       shell: pwsh
@@ -131,7 +130,16 @@ jobs:
 
         Get-ChildItem dist -Filter *.zip | Select-Object Name, Length
 
+    - name: Upload Windows build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: TothBoost-windows-x64-${{ steps.version.outputs.version }}
+        path: dist/*.zip
+        if-no-files-found: error
+        retention-days: 30
+
     - name: Create or update GitHub Release
+      if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
       shell: pwsh
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

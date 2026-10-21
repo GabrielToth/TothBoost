@@ -65,6 +65,9 @@ namespace TothBoost.Core.Tests
             Assert.Contains("cargo build --release", yml);
             Assert.Contains("gh release create", yml);
             Assert.Contains("contents: write", yml);
+            Assert.Contains("windows-latest", yml);
+            Assert.Contains("build-windows", yml);
+            Assert.Contains("actions/upload-artifact", yml);
         }
 
         [Fact]

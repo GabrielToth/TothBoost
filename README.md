@@ -14,6 +14,7 @@ TothBoost is available both as a feature-rich **C# / .NET 10 (WPF)** WPF applica
   - [Prerequisites](#prerequisites)
   - [Build & Testing Commands](#build--testing-commands)
 - [CI/CD Pipeline](#-cicd-pipeline)
+- [Cross-platform Roadmap](docs/ROADMAP.md)
 - [License](#-license)
 
 ---
@@ -80,19 +81,26 @@ dotnet build -c Release
 ## ⚙️ CI/CD Pipeline
 
 GitHub Actions (`.github/workflows/ci-cd.yml`) runs on every push/PR to `main`,
-on `v*` tags, and on manual dispatch:
+on `v*` tags, and on manual dispatch. **All build jobs run on Windows
+(`windows-latest`) and produce downloadable Windows binaries on every run:**
 
-1. **Test job** — restores and runs all .NET unit/UI tests (`dotnet test`) and
-   all native tests (`cargo test`) on `windows-latest`.
-2. **Release job** (push to `main`, tags, or manual run) — only runs if tests
-   pass:
+1. **Test on Windows** — restores and runs all .NET unit/UI tests
+   (`dotnet test`) and all native tests (`cargo test`).
+2. **Build Windows binaries** — only runs if tests pass:
    - publishes the self-contained .NET app and builds the Rust release binary;
    - runs both `--self-test` smoke checks to confirm elevation + window opening;
    - packages `TothBoost-<version>-windows-x64.zip` and
      `TothBoost-Rust-<version>-windows-x64.zip`;
-   - creates/updates GitHub Release `v<version>` and marks it as **latest**.
+   - uploads them as workflow artifacts (available for 30 days);
+   - on push to `main`, tags, or manual runs, additionally creates/updates
+     GitHub Release `v<version>` and marks it as **latest**.
 
 Versions on `main` are generated as `1.0.<run_number>` (and the assembly version
 is stamped to match, so the in-app update checker sees the newest release).
-Pushing a `v*` tag publishes that exact tag instead.
+Pushing a `v*` tag publishes that exact tag instead. Pull requests get the same
+Windows build artifacts without publishing a release.
+
+Linux and macOS are **not** part of CI yet; see the
+[cross-platform roadmap](docs/ROADMAP.md) for the feasibility analysis, phased
+plan and criteria to revisit them.
 
