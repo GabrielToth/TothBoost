@@ -33,10 +33,23 @@ TothBoost is available both as a feature-rich **C# / .NET 10 (WPF)** WPF applica
 
 For enthusiasts demanding absolute zero overhead and maximum gaming FPS:
 
-- **Executable Size**: ~320 KB standalone executable.
+- **Executable Size**: ~660 KB standalone executable.
 - **Memory Footprint**: ~2–5 MB RAM (95% lower than standard UI frameworks).
 - **Execution Speed**: Microsecond response times via pure Win32 bindings (`windows-rs`).
 - **Dependencies**: Zero runtime required (no .NET runtime, no WebView2).
+- **Five native tabs** (`SysTabControl32` + checkable `SysListView32`):
+  Processes, Services, Startup, Tweaks/Performance and Profiles.
+- **Persistent blocking**: kill + block a process and it is terminated on
+  sight (2-second watchdog, skipped when the list is empty) and its matching
+  startup entries are quarantined so it cannot return after a reboot. Stored in
+  `%ProgramData%\TothBoost\blocked_processes.json`.
+- **Persistent service disabling**: writes both the SCM configuration and the
+  registry `Start` value, so disabled services stay disabled across reboots.
+  Protected services require an explicit warning confirmation.
+- **Reversible startup quarantine**: registry values and Startup-folder files
+  are moved to `%ProgramData%\TothBoost\Restoration` and can be restored.
+- **Profiles**: capture services, tweaks, startup entries and the blocklist;
+  a `Default` baseline is created automatically and cannot be deleted.
 
 ---
 

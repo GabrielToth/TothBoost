@@ -1,11 +1,14 @@
 use windows::core::*;
+use windows::Win32::Foundation::GetLastError;
 use windows::Win32::System::Registry::*;
-use windows::Win32::System::Services::*;
+use windows::Win32::System::Services::{
+    ENUM_SERVICE_TYPE, SERVICE_ERROR, SERVICE_START_TYPE, *,
+};
 
-/// Mirrors the C# ServiceManager behavior:
-/// - Disable/Enable writes to HKLM\SYSTEM\CurrentControlSet\Services\{name}\Start
-///   (non-destructive, fully reversible, same as the C# app).
-/// - Stop/Start/Restart go through the Service Control Manager.
+/// Service control with two persistence layers:
+/// 1. SCM (`ChangeServiceConfigW`) so the change applies immediately.
+/// 2. Registry `Start` value so the change survives reboot even when the SCM
+///    call is rejected (e.g. protected services with restrictive ACLs).
 pub struct ServiceManager;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,11 +20,22 @@ pub enum ServiceStartKind {
     Disabled = 4,
 }
 
-impl ServiceManager {
-    fn services_root() -> Vec<u16> {
-        "SYSTEM\\CurrentControlSet\\Services".encode_utf16().chain(std::iter::once(0)).collect()
+impl ServiceStartKind {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Boot => "Boot",
+            Self::System => "System",
+            Self::Automatic => "Automatic",
+            Self::Manual => "Manual",
+            Self::Disabled => "Disabled",
+        }
     }
+}
 
+const ERROR_SERVICE_NOT_ACTIVE: u32 = 1062;
+const ERROR_SERVICE_ALREADY_RUNNING: u32 = 1056;
+
+impl ServiceManager {
     fn service_subkey(name: &str) -> Vec<u16> {
         format!("SYSTEM\\CurrentControlSet\\Services\\{}", name)
             .encode_utf16()
@@ -29,17 +43,20 @@ impl ServiceManager {
             .collect()
     }
 
-    /// Set Start value in registry (like C# EnableService/DisableService).
-    pub fn set_start_type(name: &str, kind: ServiceStartKind) -> std::result::Result<(), String> {
+    fn set_registry_start(name: &str, kind: ServiceStartKind) -> std::result::Result<(), String> {
         unsafe {
             let subkey = Self::service_subkey(name);
             let mut key = HKEY::default();
-            let res = RegOpenKeyExW(HKEY_LOCAL_MACHINE, PCWSTR(subkey.as_ptr()), 0, KEY_WRITE, &mut key);
+            let res = RegOpenKeyExW(HKEY_LOCAL_MACHINE, PCWSTR(subkey.as_ptr()), 0, KEY_SET_VALUE, &mut key);
             if res.is_err() {
-                return Err(format!("Cannot open service key '{}' (access denied / not found)", name));
+                return Err(format!("Cannot open service key '{}' (access denied)", name));
             }
             let start_bytes = (kind as u32).to_ne_bytes();
             let r = RegSetValueExW(key, w!("Start"), 0, REG_DWORD, Some(&start_bytes));
+            // "DelayedAutostart" only makes sense for automatic services.
+            if kind != ServiceStartKind::Automatic {
+                let _ = RegDeleteValueW(key, w!("DelayedAutostart"));
+            }
             let _ = RegCloseKey(key);
             if r.is_ok() {
                 Ok(())
@@ -49,7 +66,49 @@ impl ServiceManager {
         }
     }
 
-    /// Read current Start value from registry.
+    /// Writes the start type to the SCM and the registry. Succeeds when at
+    /// least one layer accepted the change, so persistent disabling works even
+    /// for services that reject `ChangeServiceConfigW`.
+    pub fn set_start_type(name: &str, kind: ServiceStartKind) -> std::result::Result<(), String> {
+        let scm_result = Self::set_scm_start(name, kind);
+        let reg_result = Self::set_registry_start(name, kind);
+
+        if reg_result.is_ok() || scm_result.is_ok() {
+            Ok(())
+        } else {
+            Err(format!(
+                "Could not change '{}' (SCM: {}; registry: {})",
+                name,
+                scm_result.err().unwrap_or_default(),
+                reg_result.err().unwrap_or_default()
+            ))
+        }
+    }
+
+    fn set_scm_start(name: &str, kind: ServiceStartKind) -> std::result::Result<(), String> {
+        unsafe {
+            let scm = Self::open_scm()?;
+            let svc = Self::open_service(scm, name, SERVICE_CHANGE_CONFIG)?;
+            let res = ChangeServiceConfigW(
+                svc,
+                ENUM_SERVICE_TYPE(SERVICE_NO_CHANGE),
+                SERVICE_START_TYPE(kind as u32),
+                SERVICE_ERROR(SERVICE_NO_CHANGE),
+                PCWSTR::null(),
+                PCWSTR::null(),
+                None,
+                PCWSTR::null(),
+                PCWSTR::null(),
+                PCWSTR::null(),
+                PCWSTR::null(),
+            );
+            let _ = CloseServiceHandle(svc);
+            let _ = CloseServiceHandle(scm);
+            res.map_err(|e| e.to_string())
+        }
+    }
+
+    /// Reads the current Start value from the registry.
     pub fn get_start_type(name: &str) -> std::result::Result<u32, String> {
         unsafe {
             let subkey = Self::service_subkey(name);
@@ -71,11 +130,18 @@ impl ServiceManager {
     }
 
     pub fn disable(name: &str) -> std::result::Result<(), String> {
-        Self::set_start_type(name, ServiceStartKind::Disabled)
+        let config = Self::set_start_type(name, ServiceStartKind::Disabled);
+        // Best effort: stop a running service so the setting takes effect now.
+        let _ = Self::stop(name);
+        config
     }
 
     pub fn enable_auto(name: &str) -> std::result::Result<(), String> {
         Self::set_start_type(name, ServiceStartKind::Automatic)
+    }
+
+    pub fn enable_manual(name: &str) -> std::result::Result<(), String> {
+        Self::set_start_type(name, ServiceStartKind::Manual)
     }
 
     fn open_scm() -> std::result::Result<SC_HANDLE, String> {
@@ -93,29 +159,66 @@ impl ServiceManager {
         }
     }
 
+    /// Stops the service and waits (up to ~5s) for it to reach STOPPED.
     pub fn stop(name: &str) -> std::result::Result<(), String> {
         unsafe {
             let scm = Self::open_scm()?;
             let svc = Self::open_service(scm, name, SERVICE_STOP | SERVICE_QUERY_STATUS)?;
             let mut status = SERVICE_STATUS::default();
             let res = ControlService(svc, SERVICE_CONTROL_STOP, &mut status);
+
+            if res.is_err() {
+                let code = GetLastError().0;
+                let _ = CloseServiceHandle(svc);
+                let _ = CloseServiceHandle(scm);
+                if code == ERROR_SERVICE_NOT_ACTIVE {
+                    return Ok(());
+                }
+                return Err(format!("Stop failed for '{}' (code {})", name, code));
+            }
+
+            for _ in 0..50 {
+                let mut buffer = [0u8; std::mem::size_of::<SERVICE_STATUS_PROCESS>()];
+                let mut needed = 0u32;
+                if QueryServiceStatusEx(
+                    svc,
+                    SC_STATUS_PROCESS_INFO,
+                    Some(&mut buffer),
+                    &mut needed,
+                )
+                .is_ok()
+                {
+                    let sp = &*(buffer.as_ptr() as *const SERVICE_STATUS_PROCESS);
+                    if sp.dwCurrentState == SERVICE_STOPPED {
+                        break;
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+
             let _ = CloseServiceHandle(svc);
             let _ = CloseServiceHandle(scm);
-            res.is_ok().then_some(()).ok_or_else(|| format!("Stop failed for '{}'", name))
+            Ok(())
         }
     }
 
     pub fn start(name: &str) -> std::result::Result<(), String> {
         unsafe {
             let scm = Self::open_scm()?;
-            let svc = Self::open_service(scm, name, SERVICE_START)?;
+            let svc = Self::open_service(scm, name, SERVICE_START | SERVICE_QUERY_STATUS)?;
             let res = StartServiceW(svc, None);
             let _ = CloseServiceHandle(svc);
             let _ = CloseServiceHandle(scm);
-            res.is_ok().then_some(()).ok_or_else(|| format!("Start failed for '{}'", name))
+
+            if res.is_ok() || GetLastError().0 == ERROR_SERVICE_ALREADY_RUNNING {
+                Ok(())
+            } else {
+                Err(format!("Start failed for '{}' (code {})", name, GetLastError().0))
+            }
         }
     }
 
+    #[allow(dead_code)]
     pub fn restart(name: &str) -> std::result::Result<(), String> {
         let _ = Self::stop(name);
         Self::start(name)
