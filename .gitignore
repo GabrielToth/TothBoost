@@ -8,3 +8,4 @@ publish/
 TestResults/
 dist/
 src/tothboost-rs/target/
+src/tothboost-rs/target-win7/

@@ -51,6 +51,28 @@ For enthusiasts demanding absolute zero overhead and maximum gaming FPS:
 - **Profiles**: capture services, tweaks, startup entries and the blocklist;
   a `Default` baseline is created automatically and cannot be deleted.
 
+### Compatibility (Windows 10/11 vs. legacy)
+
+- **Windows 10/11 x64**: official target for both apps, exercised in CI.
+- **Windows 7 SP1 / 8 / 8.1 x64**: `TothBoost-Rust-Win7.exe`, built with Rust
+  1.77.0 and PE subsystem 6.01. It is **best-effort**: the build and imports are
+  audited automatically, but there is no Windows 7 machine in CI to run it.
+- **Windows XP/Vista**: **not supported**. Modern Rust std and .NET 10 cannot
+  target XP; a separate legacy codebase would be required.
+- The .NET 10 WPF app requires Windows 10+ regardless of packaging options.
+
+See [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) for the full matrix,
+evidence and limitations.
+
+```powershell
+# Legacy build + PE import audit (Windows 7 SP1 / 8 / 8.1 x64)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-legacy-win7.ps1
+
+# Audit any PE binary (subsystem version + post-Windows-7 imports)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-legacy-pe.ps1 `
+  -Path src/tothboost-rs/target-win7/release/tothboost.exe
+```
+
 ---
 
 ## 🚀 Building & Testing

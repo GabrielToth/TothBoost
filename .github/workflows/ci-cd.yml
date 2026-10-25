@@ -93,6 +93,12 @@ jobs:
       working-directory: ./src/tothboost-rs
       run: cargo build --release --verbose
 
+    - name: Build legacy Rust app (Windows 7 SP1 / 8 / 8.1)
+      shell: pwsh
+      run: |
+        rustup toolchain install 1.77.0-x86_64-pc-windows-gnu --profile minimal
+        ./scripts/build-legacy-win7.ps1 -OutputDirectory dist/legacy
+
     - name: Verify both apps start elevated and open their window
       shell: pwsh
       run: |
@@ -116,6 +122,17 @@ jobs:
           throw 'TothBoost native self-test failed.'
         }
 
+        # The legacy binary must at least execute and pass the same self-test on
+        # a modern host; actual Windows 7 behaviour still needs a real VM.
+        Remove-Item $rustLog -ErrorAction SilentlyContinue
+        Start-Process -FilePath 'dist/legacy/TothBoost-Rust-Win7.exe' `
+          -ArgumentList '--self-test' -Verb RunAs -Wait | Out-Null
+        for ($i = 0; $i -lt 20 -and -not (Test-Path $rustLog); $i++) { Start-Sleep -Milliseconds 250 }
+        if (Test-Path $rustLog) { Get-Content $rustLog }
+        if (-not (Test-Path $rustLog) -or -not (Select-String -Path $rustLog -Pattern 'RESULT=PASS' -Quiet)) {
+          throw 'TothBoost legacy native self-test failed.'
+        }
+
     - name: Package release artifacts
       shell: pwsh
       run: |
@@ -127,6 +144,7 @@ jobs:
         $version = '${{ steps.version.outputs.version }}'
         Compress-Archive -Path dist/dotnet/* -DestinationPath "dist/TothBoost-$version-windows-x64.zip" -Force
         Compress-Archive -Path dist/rust/* -DestinationPath "dist/TothBoost-Rust-$version-windows-x64.zip" -Force
+        Compress-Archive -Path dist/legacy/* -DestinationPath "dist/TothBoost-Rust-$version-windows7-x64-legacy.zip" -Force
 
         Get-ChildItem dist -Filter *.zip | Select-Object Name, Length
 
@@ -155,6 +173,6 @@ jobs:
         } else {
           gh release create $tag @assets `
             --title "TothBoost $tag" `
-            --notes "Automated build of TothBoost v$version (commit $env:GITHUB_SHA).`n`n- TothBoost-$version-windows-x64.zip: full .NET 10 WPF app, self-contained (always requests Administrator).`n- TothBoost-Rust-$version-windows-x64.zip: native Win32/Rust engine (auto-elevates via UAC)." `
+            --notes "Automated build of TothBoost v$version (commit $env:GITHUB_SHA).`n`n- TothBoost-$version-windows-x64.zip: full .NET 10 WPF app, self-contained (always requests Administrator).`n- TothBoost-Rust-$version-windows-x64.zip: native Win32/Rust engine (auto-elevates via UAC).`n- TothBoost-Rust-$version-windows7-x64-legacy.zip: native engine built with Rust 1.77 for Windows 7 SP1/8/8.1 (best-effort, see docs/COMPATIBILITY.md)." `
             --latest
         }

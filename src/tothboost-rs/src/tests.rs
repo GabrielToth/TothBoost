@@ -3,12 +3,17 @@ use crate::elevation::ElevationManager;
 use crate::models::{ActionReport, RiskLevel, StartupKind};
 use crate::power::ProcessController;
 use crate::profile::{ProfileData, ProfileService, StartupState};
-use crate::scanner::SystemScanner;
+use crate::scanner::{classify_service, parse_csv_line, SystemScanner};
+use crate::service::{ServiceManager, ServiceStartKind};
 use crate::tweaks::RegistryTweaks;
+use std::os::windows::process::CommandExt;
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
 
 /// Serializes tests that mutate the process-wide profile directory env var.
 static PROFILE_ENV_LOCK: Mutex<()> = Mutex::new(());
+/// Serializes tests that mutate the process-wide blocklist directory env var.
+static BLOCKLIST_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn test_models_action_report() {
@@ -129,6 +134,7 @@ fn test_blocklist_load_is_safe() {
 
 #[test]
 fn test_blocklist_roundtrip_persistence() {
+    let _guard = BLOCKLIST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = std::env::temp_dir().join(format!("tothboost-blocklist-test-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::env::set_var("TOTHBOOST_DATA_DIR", &dir);
@@ -222,4 +228,168 @@ fn test_process_path_helper() {
     use crate::power::os_name_from_path;
     assert_eq!(os_name_from_path("C:\\Windows\\System32\\cmd.exe"), "cmd.exe");
     assert_eq!(os_name_from_path(""), "");
+}
+
+#[test]
+fn test_blocklist_never_accepts_self_or_protected() {
+    assert!(Blocklist::normalize(&crate::power::own_process_name()).is_none());
+    for name in ["svchost.exe", "lsass.exe", "winlogon.exe", "services.exe"] {
+        assert!(Blocklist::normalize(name).is_none(), "{} must stay protected", name);
+    }
+}
+
+#[test]
+fn test_blocklist_enforce_is_noop_when_empty() {
+    let _guard = BLOCKLIST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = std::env::temp_dir().join(format!("tothboost-blocklist-empty-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::env::set_var("TOTHBOOST_DATA_DIR", &dir);
+    Blocklist::save(&[]).unwrap();
+    assert_eq!(Blocklist::enforce(), 0);
+    std::env::remove_var("TOTHBOOST_DATA_DIR");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// End-to-end proof of persistent blocking: a uniquely named copy of a real
+/// executable is started, added to the on-disk blocklist, and the enforcement
+/// loop must terminate it. Uses a copy so no real system process is harmed.
+#[test]
+fn test_blocklist_enforcement_terminates_blocked_process() {
+    let _guard = BLOCKLIST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = std::env::temp_dir().join(format!("tothboost-blocklist-enforce-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::env::set_var("TOTHBOOST_DATA_DIR", &dir);
+
+    let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
+    let ping = std::path::Path::new(&system_root).join("System32\\ping.exe");
+    let child_name = format!("tothboost_block_test_{}.exe", std::process::id());
+    let child_path = dir.join(&child_name);
+    std::fs::copy(&ping, &child_path).expect("copy ping.exe into temp dir");
+
+    let mut child = Command::new(&child_path)
+        .args(["-n", "120", "127.0.0.1"])
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("start test child");
+
+    let mut visible = false;
+    for _ in 0..80 {
+        if ProcessController::enumerate()
+            .iter()
+            .any(|(_, name)| name.eq_ignore_ascii_case(&child_name))
+        {
+            visible = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert!(visible, "test child {} never appeared in enumeration", child_name);
+
+    Blocklist::save(&[child_name.clone()]).expect("blocklist should save");
+    let killed = Blocklist::enforce();
+    assert!(killed >= 1, "enforcement should terminate at least the test child");
+
+    let mut exited = false;
+    for _ in 0..80 {
+        if child.try_wait().expect("try_wait").is_some() {
+            exited = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    if !exited {
+        let _ = child.kill();
+    }
+    let _ = child.wait();
+    assert!(exited, "blocked child is still running after enforcement");
+
+    std::env::remove_var("TOTHBOOST_DATA_DIR");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn test_service_start_type_is_readable_and_valid() {
+    let name = if ServiceManager::get_start_type("RpcSs").is_ok() {
+        "RpcSs"
+    } else {
+        "DcomLaunch"
+    };
+    let start = ServiceManager::get_start_type(name)
+        .unwrap_or_else(|e| panic!("cannot read Start for {}: {}", name, e));
+    assert!(start <= 4, "unexpected Start value {} for {}", start, name);
+
+    assert_eq!(ServiceStartKind::Boot.label(), "Boot");
+    assert_eq!(ServiceStartKind::System.label(), "System");
+    assert_eq!(ServiceStartKind::Automatic.label(), "Automatic");
+    assert_eq!(ServiceStartKind::Manual.label(), "Manual");
+    assert_eq!(ServiceStartKind::Disabled.label(), "Disabled");
+}
+
+#[test]
+fn test_service_risk_classification() {
+    assert_eq!(classify_service("RpcSs"), (RiskLevel::Protected, true));
+    assert_eq!(classify_service("SamSs"), (RiskLevel::Protected, true));
+    assert_eq!(classify_service("DiagTrack"), (RiskLevel::Recommended, false));
+    assert_eq!(classify_service("SysMain"), (RiskLevel::Recommended, false));
+    assert_eq!(classify_service("Spooler"), (RiskLevel::Warning, false));
+    assert_eq!(classify_service("SomeVendorService"), (RiskLevel::Optional, false));
+}
+
+#[test]
+fn test_tweak_catalog_is_complete_and_unique() {
+    let tweaks = RegistryTweaks::get_available_tweaks();
+    assert_eq!(tweaks.len(), 7);
+    let mut ids: Vec<&str> = tweaks.iter().map(|t| t.id.as_str()).collect();
+    ids.sort();
+    ids.dedup();
+    assert_eq!(ids.len(), tweaks.len(), "tweak IDs must be unique");
+    for tweak in &tweaks {
+        assert!(!tweak.name.trim().is_empty());
+        assert!(!tweak.description.trim().is_empty());
+        assert!(!tweak.category.trim().is_empty());
+    }
+}
+
+#[test]
+fn test_profile_capture_reflects_current_system() {
+    let profile = ProfileService::capture("__capture_test__");
+    assert!(!profile.services.is_empty(), "capture must include services");
+    assert_eq!(profile.tweaks.len(), 7, "capture must include every tweak");
+    assert!(profile.created_utc.ends_with("UTC"));
+    assert!(profile.created_utc.len() >= 20);
+    assert!(profile.services.iter().all(|(name, start)| !name.is_empty() && *start <= 4));
+}
+
+#[test]
+fn test_startup_items_have_consistent_fields() {
+    for item in SystemScanner::scan_startup() {
+        assert!(!item.name.is_empty());
+        assert!(!item.location.is_empty());
+        match item.kind {
+            StartupKind::Registry => {
+                assert!(!item.hive.is_empty(), "registry item without hive: {}", item.name);
+                assert!(!item.key_path.is_empty(), "registry item without key: {}", item.name);
+                assert!(!item.command.is_empty(), "registry item without command: {}", item.name);
+            }
+            StartupKind::File => {
+                assert!(!item.file_path.is_empty(), "file item without path: {}", item.name);
+            }
+        }
+    }
+}
+
+#[test]
+fn test_scheduled_task_csv_parser() {
+    assert_eq!(parse_csv_line("a,b,c"), vec!["a", "b", "c"]);
+    assert_eq!(
+        parse_csv_line("\"task,name\",\"\\Folder\",\"Ready\""),
+        vec!["task,name", "\\Folder", "Ready"]
+    );
+    assert_eq!(
+        parse_csv_line("\"say \"\"hi\"\"\",x"),
+        vec!["say \"hi\"", "x"]
+    );
 }

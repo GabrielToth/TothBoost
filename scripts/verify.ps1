@@ -14,7 +14,8 @@
 [CmdletBinding()]
 param(
     [string]$Version = "1.0.0",
-    [switch]$SkipPublish
+    [switch]$SkipPublish,
+    [switch]$SkipLegacy
 )
 
 $ErrorActionPreference = "Stop"
@@ -81,9 +82,17 @@ try {
     Pop-Location
 }
 
+$legacyExe = $null
+if (-not $SkipLegacy) {
+    Write-Step "Building and auditing legacy Rust binary (Windows 7 SP1 / 8 / 8.1)"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build-legacy-win7.ps1")
+    if ($LASTEXITCODE -ne 0) { throw "Legacy Windows 7 build/audit failed." }
+    $legacyExe = Join-Path $repoRoot "dist\legacy\TothBoost-Rust-Win7.exe"
+    if (-not (Test-Path $legacyExe)) { throw "Legacy binary not found: $legacyExe" }
+}
+
 $dotnetDir = Join-Path $repoRoot "dist\verify\dotnet"
-if (-not $SkipPublish) {
-    Write-Step "Publishing .NET app (self-contained, single file)"
+if (-not $SkipPublish) {    Write-Step "Publishing .NET app (self-contained, single file)"
     & $dotnet publish "src/TothBoost.App/TothBoost.App.csproj" `
         -c Release -r win-x64 --self-contained true `
         -p:PublishSingleFile=true -p:Version=$Version `
@@ -126,5 +135,8 @@ Invoke-SelfTest $dotnetExe $dotnetLog @($dotnetLog)
 
 Write-Step "ALL CHECKS PASSED"
 Write-Host "Rust binary : $rustExe" -ForegroundColor Green
+if ($legacyExe) {
+    Write-Host "Legacy x64  : $legacyExe (Windows 7 SP1 / 8 / 8.1, build-audited)" -ForegroundColor Green
+}
 Write-Host ".NET binary : $dotnetExe" -ForegroundColor Green
 exit 0

@@ -176,15 +176,44 @@ unsafe fn run_self_test(hwnd: HWND) -> Result<()> {
     check("UI_READY", ui::is_window_ready(), "");
 
     let loaded_processes = ui::self_test_load();
-    let (pages, process_rows, services, startups) = ui::diagnostics();
-    check("TAB_COUNT", pages == 5, &format!("{} tabs", pages));
+    let d = ui::diagnostics();
+    check("TAB_COUNT", d.pages == 5, &format!("{} tabs", d.pages));
     check(
         "PROCESS_ROWS",
-        process_rows > 0 && loaded_processes == process_rows,
-        &format!("{} rows", process_rows),
+        d.rows[0] > 0 && d.rows[0] == d.model_rows[0] && loaded_processes == d.rows[0],
+        &format!("{} rendered / {} scanned", d.rows[0], d.model_rows[0]),
     );
-    check("SERVICE_ROWS", services > 0, &format!("{} services", services));
-    check("STARTUP_ROWS", startups > 0, &format!("{} startup items", startups));
+    check(
+        "SERVICE_ROWS",
+        d.rows[1] > 0 && d.rows[1] == d.model_rows[1],
+        &format!("{} rendered / {} scanned", d.rows[1], d.model_rows[1]),
+    );
+    check(
+        "STARTUP_ROWS",
+        d.rows[2] == d.model_rows[2],
+        &format!("{} rendered / {} scanned", d.rows[2], d.model_rows[2]),
+    );
+    check(
+        "TWEAK_ROWS",
+        d.rows[3] > 0 && d.rows[3] == d.model_rows[3],
+        &format!("{} rendered / {} scanned", d.rows[3], d.model_rows[3]),
+    );
+    check(
+        "PROFILE_ROWS",
+        d.rows[4] == d.model_rows[4],
+        &format!("{} rendered / {} scanned", d.rows[4], d.model_rows[4]),
+    );
+    check(
+        "TABLE_COLUMNS",
+        d.columns == [5, 5, 4, 4, 5],
+        &format!("{:?}", d.columns),
+    );
+    check(
+        "CHECKBOXES",
+        d.checkboxes.iter().all(|enabled| *enabled),
+        &format!("{:?}", d.checkboxes),
+    );
+    check("STATUS_BAR", d.status_ready, "");
 
     let log_path = std::env::temp_dir().join("tothboost-rust-selftest.log");
     lines.push(format!("RESULT={}", if ok { "PASS" } else { "FAIL" }));

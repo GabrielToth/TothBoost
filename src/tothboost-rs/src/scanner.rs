@@ -168,7 +168,7 @@ impl SystemScanner {
 
 /// Minimal CSV splitter that respects double quotes (schtasks output).
 #[allow(dead_code)]
-fn parse_csv_line(line: &str) -> Vec<String> {
+pub(crate) fn parse_csv_line(line: &str) -> Vec<String> {
     let mut fields = Vec::new();
     let mut current = String::new();
     let mut in_quotes = false;
@@ -191,7 +191,7 @@ fn parse_csv_line(line: &str) -> Vec<String> {
     fields
 }
 
-fn classify_service(name: &str) -> (RiskLevel, bool) {
+pub(crate) fn classify_service(name: &str) -> (RiskLevel, bool) {
     let lower = name.to_lowercase();
     let protected = matches!(
         lower.as_str(),

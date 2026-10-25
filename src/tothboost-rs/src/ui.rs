@@ -1480,26 +1480,67 @@ pub unsafe extern "system" fn wnd_proc(
 }
 
 /// Diagnostic counters used by `--self-test`.
-pub unsafe fn diagnostics() -> (usize, usize, usize, usize) {
-    let Some(app) = app_mut() else {
-        return (0, 0, 0, 0);
+pub struct Diagnostics {
+    pub pages: usize,
+    /// Item rows actually present in each list view.
+    pub rows: [usize; 5],
+    /// Items held by the corresponding model vector.
+    pub model_rows: [usize; 5],
+    pub columns: [usize; 5],
+    pub checkboxes: [bool; 5],
+    pub status_ready: bool,
+}
+
+pub unsafe fn diagnostics() -> Diagnostics {
+    let mut result = Diagnostics {
+        pages: 0,
+        rows: [0; 5],
+        model_rows: [0; 5],
+        columns: [0; 5],
+        checkboxes: [false; 5],
+        status_ready: false,
     };
-    let process_rows =
-        SendMessageW(app.pages[0].list, LVM_GETITEMCOUNT, WPARAM(0), LPARAM(0)).0 as usize;
-    (
-        app.pages.len(),
-        process_rows,
+    let Some(app) = app_mut() else {
+        return result;
+    };
+
+    result.pages = app.pages.len();
+    result.model_rows = [
+        app.processes.len(),
         app.services.len(),
         app.startups.len(),
-    )
+        app.tweaks.len(),
+        app.profiles.len(),
+    ];
+    result.status_ready = !app.status.0.is_null();
+
+    for (index, page) in app.pages.iter().enumerate().take(5) {
+        result.rows[index] =
+            SendMessageW(page.list, LVM_GETITEMCOUNT, WPARAM(0), LPARAM(0)).0 as usize;
+
+        let header = HWND(
+            SendMessageW(page.list, LVM_GETHEADER, WPARAM(0), LPARAM(0)).0
+                as *mut std::ffi::c_void,
+        );
+        if !header.0.is_null() {
+            result.columns[index] =
+                SendMessageW(header, HDM_GETITEMCOUNT, WPARAM(0), LPARAM(0)).0 as usize;
+        }
+
+        let style =
+            SendMessageW(page.list, LVM_GETEXTENDEDLISTVIEWSTYLE, WPARAM(0), LPARAM(0)).0 as u32;
+        result.checkboxes[index] = style & LVS_EX_CHECKBOXES != 0;
+    }
+
+    result
 }
 
 pub unsafe fn is_window_ready() -> bool {
     app_mut().is_some()
 }
 
-/// Loads only the process table. Used by `--self-test` so the check proves the
-/// UI is functional without touching services, profiles or the registry.
+/// Loads every table in read-only mode. Used by `--self-test` so the check
+/// proves the UI renders real data without changing services or the registry.
 pub unsafe fn self_test_load() -> usize {
     let Some(app) = app_mut() else {
         return 0;
@@ -1507,5 +1548,7 @@ pub unsafe fn self_test_load() -> usize {
     app.reload_processes();
     app.reload_services();
     app.reload_startup();
+    app.reload_tweaks();
+    app.reload_profiles();
     app.processes.len()
 }
