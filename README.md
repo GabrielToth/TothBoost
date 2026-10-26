@@ -111,6 +111,21 @@ dotnet build -c Release
   It checks the administrator token, creates/shows the main window, writes a
   `RESULT=PASS` log, and exits without modifying the system.
 
+### Local installation (`scripts/install.ps1`)
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1
+```
+Builds and installs the lightweight native engine into
+`%LOCALAPPDATA%\Programs\TothBoost`, **always overwriting the previously
+installed version**, and points the Start Menu shortcut to it
+(`TothBoost-Rust.exe`, ~680 KB, zero runtime). Any heavy .NET files left by an
+older install are removed.
+
+Use `-WithDotNet` to also publish the optional .NET 10 WPF app, and
+`-DotNetShortcut` to create a separate `TothBoost (.NET UI)` shortcut. Without
+`-Version`, the script reads the newest git tag, so a local install never
+silently downgrades the app. The installed native app is self-tested at the end.
+
 ---
 
 ## ⚙️ CI/CD Pipeline
