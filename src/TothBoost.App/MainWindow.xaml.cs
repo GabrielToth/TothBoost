@@ -1,8 +1,12 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -25,6 +29,11 @@ namespace TothBoost.App
         private readonly ObservableCollection<TaskRow> _taskAll = new();
         private readonly ObservableCollection<StartupRow> _startupAll = new();
         private readonly ObservableCollection<TweakRow> _tweakAll = new();
+        private ICollectionView _procView = null!;
+        private ICollectionView _svcView = null!;
+        private ICollectionView _taskView = null!;
+        private ICollectionView _startupView = null!;
+        private ICollectionView _tweakView = null!;
         private bool _busy;
         private readonly bool _selfTest;
         private readonly DispatcherTimer _procTimer = new() { Interval = TimeSpan.FromSeconds(2) };
@@ -36,6 +45,27 @@ namespace TothBoost.App
             _selfTest = selfTest;
             _procTimer.Tick += async (_, _) => await AutoRefreshProcesses();
             InitializeComponent();
+
+            // Tag targets for the "Columns" chooser buttons (assigned in code so
+            // they are available before the window is loaded).
+            BtnProcColumns.Tag = GridProcesses;
+            BtnSvcColumns.Tag = GridServices;
+            BtnStartupColumns.Tag = GridStartups;
+            BtnTaskColumns.Tag = GridTasks;
+            BtnTweakColumns.Tag = GridTweaks;
+
+            // One persistent view per grid. Reassigning ItemsSource on every
+            // refresh used to wipe the user's chosen sort order, so the grids
+            // now keep a single ICollectionView whose Filter is refreshed
+            // instead. Sorting set by clicking a header lives on that view.
+            _procView = CreateView(_procAll, GridProcesses, ProcMatches);
+            _svcView = CreateView(_svcAll, GridServices, SvcMatches);
+            _taskView = CreateView(_taskAll, GridTasks, TaskMatches);
+            _startupView = CreateView(_startupAll, GridStartups, StartupMatches);
+            _tweakView = CreateView(_tweakAll, GridTweaks, _ => true);
+
+            ApplySavedColumnLayout();
+
             Loaded += OnLoaded;
 
             SvcFilter.ItemsSource = new[]
@@ -107,6 +137,181 @@ namespace TothBoost.App
             await RefreshStartups();
             await RefreshTweaks();
             RefreshRestorePointsUi();
+        }
+
+        private static ICollectionView CreateView<T>(ObservableCollection<T> source, DataGrid grid, Predicate<object> filter)
+        {
+            var view = CollectionViewSource.GetDefaultView(source);
+            view.Filter = filter;
+            grid.ItemsSource = view;
+            return view;
+        }
+
+        private bool ProcMatches(object item)
+        {
+            if (item is not ProcRow r) return false;
+            // System view shows only protected processes, user view the rest.
+            if (r.IsProtected != _showSystemProcs) return false;
+
+            var q = ProcSearch.Text?.Trim().ToLowerInvariant() ?? "";
+            if (q.Length == 0) return true;
+            return r.Name.ToLowerInvariant().Contains(q) || r.Pid.ToString().Contains(q);
+        }
+
+        private bool SvcMatches(object item)
+        {
+            if (item is not SvcRow s) return false;
+            var f = SvcFilter.SelectedIndex;
+            var matches = f switch
+            {
+                1 => s.S.Risk == RiskLevel.Recommended,
+                2 => s.S.IsProtected,
+                3 => s.S.Risk == RiskLevel.Warning,
+                4 => s.S.Risk == RiskLevel.Optional,
+                5 => !s.IsOn,
+                6 => s.RunningState == "Running",
+                _ => true
+            };
+            if (!matches) return false;
+
+            var q = SvcSearch.Text?.Trim().ToLowerInvariant() ?? "";
+            if (q.Length == 0) return true;
+            return s.Name.ToLowerInvariant().Contains(q)
+                || s.DisplayName.ToLowerInvariant().Contains(q)
+                || s.Description.ToLowerInvariant().Contains(q);
+        }
+
+        private bool TaskMatches(object item)
+        {
+            if (item is not TaskRow t) return false;
+            var f = TaskFilter.SelectedIndex;
+            if (f == 1 && !t.IsOn) return false;
+            if (f == 2 && t.IsOn) return false;
+
+            var q = TaskSearch.Text?.Trim().ToLowerInvariant() ?? "";
+            if (q.Length == 0) return true;
+            return t.Name.ToLowerInvariant().Contains(q) || t.FullPath.ToLowerInvariant().Contains(q);
+        }
+
+        private bool StartupMatches(object item)
+        {
+            if (item is not StartupRow s) return false;
+            var f = StartupFilter.SelectedIndex;
+            if (f == 1 && !s.IsOn) return false;
+            if (f == 2 && s.IsOn) return false;
+
+            var q = StartupSearch.Text?.Trim().ToLowerInvariant() ?? "";
+            if (q.Length == 0) return true;
+            return s.Name.ToLowerInvariant().Contains(q)
+                || s.Location.ToLowerInvariant().Contains(q)
+                || s.Command.ToLowerInvariant().Contains(q);
+        }
+
+        // ---------- Column visibility ----------
+
+        private static string ColumnKey(DataGridColumn column, int index)
+        {
+            var header = column.Header?.ToString();
+            return string.IsNullOrWhiteSpace(header) ? "#" + index : header;
+        }
+
+        private static string LayoutPath => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "TothBoost", "ui-layout.json");
+
+        private IEnumerable<DataGrid> AllGrids()
+        {
+            yield return GridProcesses;
+            yield return GridServices;
+            yield return GridStartups;
+            yield return GridTasks;
+            yield return GridTweaks;
+        }
+
+        private void ApplySavedColumnLayout()
+        {
+            try
+            {
+                if (!File.Exists(LayoutPath)) return;
+                var json = File.ReadAllText(LayoutPath);
+                var hidden = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(json);
+                if (hidden == null) return;
+
+                foreach (var grid in AllGrids())
+                {
+                    if (!hidden.TryGetValue(grid.Name, out var keys) || keys == null) continue;
+                    for (int i = 0; i < grid.Columns.Count; i++)
+                    {
+                        var column = grid.Columns[i];
+                        column.Visibility = keys.Contains(ColumnKey(column, i))
+                            ? Visibility.Collapsed
+                            : Visibility.Visible;
+                    }
+                }
+            }
+            catch { /* layout is a convenience: never block startup on it */ }
+        }
+
+        private void SaveColumnLayout()
+        {
+            try
+            {
+                var layout = new Dictionary<string, List<string>>();
+                foreach (var grid in AllGrids())
+                {
+                    var hidden = new List<string>();
+                    for (int i = 0; i < grid.Columns.Count; i++)
+                    {
+                        if (grid.Columns[i].Visibility != Visibility.Visible)
+                            hidden.Add(ColumnKey(grid.Columns[i], i));
+                    }
+                    layout[grid.Name] = hidden;
+                }
+
+                var dir = Path.GetDirectoryName(LayoutPath)!;
+                Directory.CreateDirectory(dir);
+                File.WriteAllText(LayoutPath, JsonSerializer.Serialize(layout,
+                    new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch { }
+        }
+
+        private void ColumnsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement fe || fe.Tag is not DataGrid grid) return;
+
+            var menu = new ContextMenu();
+            for (int i = 0; i < grid.Columns.Count; i++)
+            {
+                var column = grid.Columns[i];
+                var key = ColumnKey(column, i);
+                var item = new MenuItem
+                {
+                    Header = string.IsNullOrEmpty(column.Header?.ToString()) ? "Select (checkbox)" : column.Header!.ToString(),
+                    IsCheckable = true,
+                    IsChecked = column.Visibility == Visibility.Visible,
+                    StaysOpenOnClick = true
+                };
+                item.Click += (_, _) =>
+                {
+                    column.Visibility = item.IsChecked ? Visibility.Visible : Visibility.Collapsed;
+                    SaveColumnLayout();
+                };
+                menu.Items.Add(item);
+            }
+
+            menu.Items.Add(new Separator());
+            var showAll = new MenuItem { Header = "Show all columns" };
+            showAll.Click += (_, _) =>
+            {
+                foreach (var column in grid.Columns) column.Visibility = Visibility.Visible;
+                SaveColumnLayout();
+            };
+            menu.Items.Add(showAll);
+
+            menu.PlacementTarget = fe;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
         }
 
         private void DataGrid_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
@@ -190,7 +395,7 @@ namespace TothBoost.App
             var tw = await Task.Run(_engine.GetTweaks);
             _tweakAll.Clear();
             foreach (var t in tw) _tweakAll.Add(new TweakRow(t));
-            GridTweaks.ItemsSource = _tweakAll;
+            _tweakView.Refresh();
         }
 
         private async Task AutoRefreshProcesses()
@@ -245,18 +450,9 @@ namespace TothBoost.App
 
         private void ApplyProcFilter()
         {
-            var q = ProcSearch.Text?.Trim().ToLowerInvariant() ?? "";
+            _procView.Refresh();
 
-            var list = _showSystemProcs
-                ? _procAll.Where(r => r.IsProtected).ToList()
-                : _procAll.Where(r => !r.IsProtected).ToList();
-
-            if (!string.IsNullOrEmpty(q))
-            {
-                list = list.Where(r => r.Name.ToLowerInvariant().Contains(q) || r.Pid.ToString().Contains(q)).ToList();
-            }
-
-            GridProcesses.ItemsSource = list;
+            var list = _procView.Cast<ProcRow>().ToList();
 
             if (_showSystemProcs)
             {
@@ -403,26 +599,13 @@ namespace TothBoost.App
 
         private void ApplyStartupFilter()
         {
-            var q = StartupSearch.Text?.Trim().ToLowerInvariant() ?? "";
-            var f = StartupFilter.SelectedIndex;
-            var list = _startupAll.AsEnumerable();
-
-            if (f == 1) list = list.Where(i => i.IsOn);
-            else if (f == 2) list = list.Where(i => !i.IsOn);
-
-            if (!string.IsNullOrEmpty(q))
-            {
-                list = list.Where(i => i.Name.ToLowerInvariant().Contains(q) || i.Location.ToLowerInvariant().Contains(q) || i.Command.ToLowerInvariant().Contains(q));
-            }
-
-            var res = list.ToList();
-            GridStartups.ItemsSource = res;
-            StartupCount.Text = $"{res.Count} item(s)";
+            _startupView.Refresh();
+            StartupCount.Text = $"{_startupView.Cast<StartupRow>().Count()} item(s)";
         }
 
         private void BtnStartupSelectAll_Click(object sender, RoutedEventArgs e)
         {
-            var visible = GridStartups.ItemsSource as List<StartupRow>;
+            var visible = (GridStartups.ItemsSource as IEnumerable<StartupRow>)?.ToList();
             if (visible == null || visible.Count == 0) return;
             var targetState = !visible.All(r => r.IsChecked);
             foreach (var r in visible) r.IsChecked = targetState;
@@ -508,29 +691,8 @@ namespace TothBoost.App
 
         private void ApplySvcFilter()
         {
-            var q = SvcSearch.Text?.Trim().ToLowerInvariant() ?? "";
-            var f = SvcFilter.SelectedIndex;
-            var list = _svcAll.AsEnumerable();
-
-            list = f switch
-            {
-                1 => list.Where(s => s.S.Risk == RiskLevel.Recommended),
-                2 => list.Where(s => s.S.IsProtected),
-                3 => list.Where(s => s.S.Risk == RiskLevel.Warning),
-                4 => list.Where(s => s.S.Risk == RiskLevel.Optional),
-                5 => list.Where(s => !s.IsOn),
-                6 => list.Where(s => s.RunningState == "Running"),
-                _ => list
-            };
-
-            if (!string.IsNullOrEmpty(q))
-            {
-                list = list.Where(s => s.Name.ToLowerInvariant().Contains(q) || s.DisplayName.ToLowerInvariant().Contains(q) || s.Description.ToLowerInvariant().Contains(q));
-            }
-
-            var res = list.ToList();
-            GridServices.ItemsSource = res;
-            SvcCount.Text = $"{res.Count} service(s)";
+            _svcView.Refresh();
+            SvcCount.Text = $"{_svcView.Cast<SvcRow>().Count()} service(s)";
         }
 
         private async void BtnSvcApplyGame_Click(object sender, RoutedEventArgs e)
@@ -584,26 +746,13 @@ namespace TothBoost.App
 
         private void ApplyTaskFilter()
         {
-            var q = TaskSearch.Text?.Trim().ToLowerInvariant() ?? "";
-            var f = TaskFilter.SelectedIndex;
-            var list = _taskAll.AsEnumerable();
-
-            if (f == 1) list = list.Where(t => t.IsOn);
-            else if (f == 2) list = list.Where(t => !t.IsOn);
-
-            if (!string.IsNullOrEmpty(q))
-            {
-                list = list.Where(t => t.Name.ToLowerInvariant().Contains(q) || t.FullPath.ToLowerInvariant().Contains(q));
-            }
-
-            var res = list.ToList();
-            GridTasks.ItemsSource = res;
-            TaskCount.Text = $"{res.Count} task(s)";
+            _taskView.Refresh();
+            TaskCount.Text = $"{_taskView.Cast<TaskRow>().Count()} task(s)";
         }
 
         private void BtnTaskSelectAll_Click(object sender, RoutedEventArgs e)
         {
-            var visible = GridTasks.ItemsSource as List<TaskRow>;
+            var visible = (GridTasks.ItemsSource as IEnumerable<TaskRow>)?.ToList();
             if (visible == null || visible.Count == 0) return;
             var targetState = !visible.All(r => r.IsChecked);
             foreach (var r in visible) r.IsChecked = targetState;

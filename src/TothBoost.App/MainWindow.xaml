@@ -54,6 +54,7 @@
                             <Button x:Name="BtnProcRestartSel" Style="{StaticResource BtnPrimary}" Content="Restart Selected" Click="BtnProcRestartSel_Click"/>
                             <CheckBox x:Name="ChkAutoRefresh" Content="Auto-refresh (2s)" VerticalAlignment="Center" Margin="12,0,0,0" IsChecked="True" Checked="AutoRefreshChanged" Unchecked="AutoRefreshChanged"/>
                             <Button x:Name="BtnProcRefresh" Style="{StaticResource BtnPrimary}" Content="Refresh Now" Click="BtnProcRefresh_Click"/>
+                            <Button x:Name="BtnProcColumns" Style="{StaticResource BtnPrimary}" Content="Columns ▾" Click="ColumnsButton_Click" Tag="{Binding ElementName=GridProcesses}" ToolTip="Choose which columns are visible"/>
                         </WrapPanel>
                     </Border>
 
@@ -62,9 +63,9 @@
                     </Border>
 
                     <TextBlock x:Name="ProcViewHeader" DockPanel.Dock="Top" Text="USER PROCESSES — Safe to terminate or restart" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,2,0,6"/>
-                    <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" PreviewMouseWheel="DataGrid_PreviewMouseWheel">
+                    <DataGrid x:Name="GridProcesses" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" CanUserReorderColumns="True" CanUserResizeColumns="True" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" PreviewMouseWheel="DataGrid_PreviewMouseWheel">
                                 <DataGrid.Columns>
-                                    <DataGridTemplateColumn Header="Actions" Width="150">
+                                    <DataGridTemplateColumn Header="Actions" Width="150" CanUserSort="False" CanUserResize="False">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <StackPanel Orientation="Horizontal">
@@ -84,7 +85,7 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTemplateColumn Width="36">
+                                    <DataGridTemplateColumn Width="36" CanUserSort="False" CanUserResize="False">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding IsProtected, Converter={StaticResource InverseBool}}"/>
@@ -93,13 +94,14 @@
                                     </DataGridTemplateColumn>
                                     <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="70" SortMemberPath="Pid"/>
                                     <DataGridTextColumn Header="Process Name" Binding="{Binding Name}" Width="190" SortMemberPath="Name"/>
-                                    <DataGridTextColumn Header="RAM (MB)" Binding="{Binding MemMb}" Width="95" SortMemberPath="MemMb"/>
-                                    <DataGridTextColumn Header="CPU %" Binding="{Binding CpuText}" Width="80"/>
-                                    <DataGridTextColumn Header="GPU %" Binding="{Binding GpuText}" Width="80"/>
-                                    <DataGridTextColumn Header="Disk Read" Binding="{Binding ReadText}" Width="100"/>
-                                    <DataGridTextColumn Header="Disk Write" Binding="{Binding WriteText}" Width="100"/>
-                                    <DataGridTextColumn Header="Executable Path" Binding="{Binding Path}" Width="*"/>
-                                    <DataGridTemplateColumn Header="Protection" Width="100">
+                                    <DataGridTextColumn Header="Session" Binding="{Binding Session}" Width="80" SortMemberPath="Session"/>
+                                    <DataGridTextColumn Header="RAM (MB)" Binding="{Binding MemText}" Width="95" SortMemberPath="MemMb"/>
+                                    <DataGridTextColumn Header="CPU %" Binding="{Binding CpuText}" Width="80" SortMemberPath="CpuValue"/>
+                                    <DataGridTextColumn Header="GPU %" Binding="{Binding GpuText}" Width="80" SortMemberPath="GpuValue"/>
+                                    <DataGridTextColumn Header="Disk Read" Binding="{Binding ReadText}" Width="100" SortMemberPath="ReadKbs"/>
+                                    <DataGridTextColumn Header="Disk Write" Binding="{Binding WriteText}" Width="100" SortMemberPath="WriteKbs"/>
+                                    <DataGridTextColumn Header="Executable Path" Binding="{Binding Path}" Width="*" SortMemberPath="Path"/>
+                                    <DataGridTemplateColumn Header="Protection" Width="100" CanUserSort="False">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <TextBlock Text="{Binding ProtectionLabel}" Foreground="{Binding ProtectionColor}" FontWeight="SemiBold"/>
@@ -123,19 +125,20 @@
                             <Button x:Name="BtnStartupSelectAll" Style="{StaticResource BtnPrimary}" Content="Select All" Click="BtnStartupSelectAll_Click"/>
                             <Button x:Name="BtnStartupEnableSel" Style="{StaticResource BtnGreen}" Content="Enable Selected" Click="BtnStartupEnableSel_Click"/>
                             <Button x:Name="BtnStartupDisableSel" Style="{StaticResource BtnRed}" Content="Disable Selected (Quarantine)" Click="BtnStartupDisableSel_Click"/>
+                            <Button x:Name="BtnStartupColumns" Style="{StaticResource BtnPrimary}" Content="Columns ▾" Click="ColumnsButton_Click" Tag="{Binding ElementName=GridStartups}" ToolTip="Choose which columns are visible"/>
                         </WrapPanel>
                     </Border>
 
-                    <DataGrid x:Name="GridStartups" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
+                    <DataGrid x:Name="GridStartups" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" CanUserReorderColumns="True">
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="State" Width="110">
+                            <DataGridTemplateColumn Header="State" Width="110" CanUserSort="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ToggleButton IsChecked="{Binding IsOn, Mode=OneWay}" Style="{StaticResource ToggleSwitch}" ToolTip="{Binding ToggleTip}" Click="StartupRowToggle_Click"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Width="36">
+                            <DataGridTemplateColumn Width="36" CanUserSort="False" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
@@ -143,9 +146,9 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="220" SortMemberPath="Name"/>
-                            <DataGridTextColumn Header="Location" Binding="{Binding Location}" Width="260"/>
-                            <DataGridTextColumn Header="Command / Target Path" Binding="{Binding Command}" Width="*"/>
-                            <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="160"/>
+                            <DataGridTextColumn Header="Location" Binding="{Binding Location}" Width="260" SortMemberPath="Location"/>
+                            <DataGridTextColumn Header="Command / Target Path" Binding="{Binding Command}" Width="*" SortMemberPath="Command"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="160" SortMemberPath="StatusLabel"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>
@@ -171,19 +174,20 @@
                             <Separator Width="16"/>
                             <Button x:Name="BtnSvcEnableSel" Style="{StaticResource BtnGreen}" Content="Enable Selected" Click="BtnSvcEnableSel_Click"/>
                             <Button x:Name="BtnSvcDisableSel" Style="{StaticResource BtnRed}" Content="Disable Selected" Click="BtnSvcDisableSel_Click"/>
+                            <Button x:Name="BtnSvcColumns" Style="{StaticResource BtnPrimary}" Content="Columns ▾" Click="ColumnsButton_Click" Tag="{Binding ElementName=GridServices}" ToolTip="Choose which columns are visible"/>
                         </WrapPanel>
                     </Border>
 
-                    <DataGrid x:Name="GridServices" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
+                    <DataGrid x:Name="GridServices" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" CanUserReorderColumns="True">
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="State" Width="110">
+                            <DataGridTemplateColumn Header="State" Width="110" CanUserSort="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ToggleButton IsChecked="{Binding IsOn, Mode=OneWay}" Style="{StaticResource ToggleSwitch}" IsEnabled="{Binding CanTouch}" ToolTip="{Binding ToggleTip}" Click="SvcRowToggle_Click"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Width="36">
+                            <DataGridTemplateColumn Width="36" CanUserSort="False" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" IsEnabled="{Binding CanTouch}"/>
@@ -191,12 +195,12 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Service Name" Binding="{Binding Name}" Width="160" SortMemberPath="Name"/>
-                            <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName}" Width="240"/>
-                            <DataGridTextColumn Header="Startup Type" Binding="{Binding StartKindLabel}" Width="130"/>
-                            <DataGridTextColumn Header="Status" Binding="{Binding RunningState}" Width="100"/>
-                            <DataGridTextColumn Header="Safety Risk" Binding="{Binding RiskLabel}" Width="180"/>
-                            <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="130"/>
-                            <DataGridTextColumn Header="Description / Recommendation" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName}" Width="240" SortMemberPath="DisplayName"/>
+                            <DataGridTextColumn Header="Startup Type" Binding="{Binding StartKindLabel}" Width="130" SortMemberPath="StartKindLabel"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding RunningState}" Width="100" SortMemberPath="RunningState"/>
+                            <DataGridTextColumn Header="Safety Risk" Binding="{Binding RiskLabel}" Width="180" SortMemberPath="RiskLabel"/>
+                            <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="130" SortMemberPath="Category"/>
+                            <DataGridTextColumn Header="Description / Recommendation" Binding="{Binding Description}" Width="*" SortMemberPath="Description"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>
@@ -214,19 +218,20 @@
                             <Button x:Name="BtnTaskSelectAll" Style="{StaticResource BtnPrimary}" Content="Select All" Click="BtnTaskSelectAll_Click"/>
                             <Button x:Name="BtnTaskEnableSel" Style="{StaticResource BtnGreen}" Content="Enable Selected" Click="BtnTaskEnableSel_Click"/>
                             <Button x:Name="BtnTaskDisableSel" Style="{StaticResource BtnRed}" Content="Disable Selected" Click="BtnTaskDisableSel_Click"/>
+                            <Button x:Name="BtnTaskColumns" Style="{StaticResource BtnPrimary}" Content="Columns ▾" Click="ColumnsButton_Click" Tag="{Binding ElementName=GridTasks}" ToolTip="Choose which columns are visible"/>
                         </WrapPanel>
                     </Border>
 
-                    <DataGrid x:Name="GridTasks" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True">
+                    <DataGrid x:Name="GridTasks" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" CanUserReorderColumns="True">
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="State" Width="110">
+                            <DataGridTemplateColumn Header="State" Width="110" CanUserSort="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ToggleButton IsChecked="{Binding IsOn, Mode=OneWay}" Style="{StaticResource ToggleSwitch}" ToolTip="{Binding ToggleTip}" Click="TaskRowToggle_Click"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Width="36">
+                            <DataGridTemplateColumn Width="36" CanUserSort="False" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
@@ -234,9 +239,9 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Task Name" Binding="{Binding Name}" Width="240" SortMemberPath="Name"/>
-                            <DataGridTextColumn Header="Full Path" Binding="{Binding FullPath}" Width="360"/>
-                            <DataGridTextColumn Header="Status" Binding="{Binding StateLabel}" Width="110"/>
-                            <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="*"/>
+                            <DataGridTextColumn Header="Full Path" Binding="{Binding FullPath}" Width="360" SortMemberPath="FullPath"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding StateLabel}" Width="110" SortMemberPath="StateLabel"/>
+                            <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="*" SortMemberPath="Author"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>
@@ -260,9 +265,10 @@
                         <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="System Fine-Tuning Tweaks (All Reversible)" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
-                                <DataGrid x:Name="GridTweaks" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserSortColumns="True">
+                                <Button x:Name="BtnTweakColumns" Style="{StaticResource BtnPrimary}" Content="Columns ▾" HorizontalAlignment="Left" Margin="0,0,0,8" Click="ColumnsButton_Click" Tag="{Binding ElementName=GridTweaks}" ToolTip="Choose which columns are visible"/>
+                                <DataGrid x:Name="GridTweaks" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserSortColumns="True" CanUserReorderColumns="True">
                                     <DataGrid.Columns>
-                                        <DataGridTemplateColumn Header="Actions" Width="160">
+                                        <DataGridTemplateColumn Header="Actions" Width="160" CanUserSort="False">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Orientation="Horizontal">
@@ -272,9 +278,9 @@
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
-                                        <DataGridTextColumn Header="Tweak" Binding="{Binding Name}" Width="260"/>
-                                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="470"/>
-                                        <DataGridTextColumn Header="State" Binding="{Binding State}" Width="110"/>
+                                        <DataGridTextColumn Header="Tweak" Binding="{Binding Name}" Width="260" SortMemberPath="Name"/>
+                                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="470" SortMemberPath="Description"/>
+                                        <DataGridTextColumn Header="State" Binding="{Binding State}" Width="110" SortMemberPath="State"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </StackPanel>

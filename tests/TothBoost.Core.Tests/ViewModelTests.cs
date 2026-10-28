@@ -71,5 +71,43 @@ namespace TothBoost.Core.Tests
             Assert.Contains("30", row.CpuText);
             Assert.Equal("80%", row.GpuText);
         }
+
+        [Fact]
+        public void ProcRow_ExposesNumericSortValues()
+        {
+            var row = new ProcRow(new ProcessInfo
+            {
+                Pid = 7,
+                Name = "sort.exe",
+                WorkingSetMb = 12.5,
+                CpuPercent = 3.25,
+                GpuPercent = 17.5,
+                IoReadKbs = 512,
+                IoWriteKbs = 2048
+            });
+
+            Assert.Equal(3.25, row.CpuValue);
+            Assert.Equal(17.5, row.GpuValue);
+            Assert.Equal(512, row.ReadKbs);
+            Assert.Equal(2048, row.WriteKbs);
+            Assert.Equal(12.5, row.MemMb);
+            Assert.Equal(12.5.ToString("0.0"), row.MemText);
+        }
+
+        [Fact]
+        public void ProcRow_SubMegabyteMemory_IsNotRoundedToZero()
+        {
+            var row = new ProcRow(new ProcessInfo
+            {
+                Pid = 9,
+                Name = "tiny.exe",
+                WorkingSetMb = 0.4
+            });
+
+            Assert.Equal(0.4, row.MemMb);
+            Assert.NotEqual("0", row.MemText);
+            Assert.Equal("—", row.CpuText); // CPU unavailable on the first sample
+            Assert.Equal("—", row.GpuText); // GPU counters unavailable
+        }
     }
 }

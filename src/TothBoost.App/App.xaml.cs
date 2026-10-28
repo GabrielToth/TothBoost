@@ -113,6 +113,31 @@ namespace TothBoost.App
                 Check("WINDOW_VISIBLE", win.IsVisible);
                 Check("WINDOW_TITLE", !string.IsNullOrWhiteSpace(win.Title), win.Title);
                 Check("DARK_THEME", win.FindResource("Bg0") is not null);
+
+                var procGrid = win.FindName("GridProcesses") as System.Windows.Controls.DataGrid;
+                Check("PROCESS_GRID", procGrid is not null && procGrid.Columns.Count >= 10,
+                    procGrid is null ? "missing" : procGrid.Columns.Count + " columns");
+                Check("SORT_NUMERIC",
+                    procGrid is not null
+                    && procGrid.Columns.Any(c => c.SortMemberPath == "CpuValue")
+                    && procGrid.Columns.Any(c => c.SortMemberPath == "GpuValue")
+                    && procGrid.Columns.Any(c => c.SortMemberPath == "MemMb")
+                    && procGrid.Columns.Any(c => c.SortMemberPath == "ReadKbs")
+                    && procGrid.Columns.Any(c => c.SortMemberPath == "WriteKbs"));
+                Check("PERSISTENT_VIEW",
+                    procGrid?.ItemsSource is System.ComponentModel.ICollectionView);
+
+                var columnsButton = win.FindName("BtnProcColumns") as System.Windows.Controls.Button;
+                Check("COLUMN_CHOOSER", columnsButton?.Tag is System.Windows.Controls.DataGrid);
+                if (procGrid is not null && procGrid.Columns.Count > 3)
+                {
+                    var column = procGrid.Columns[3];
+                    column.Visibility = Visibility.Collapsed;
+                    var hidden = column.Visibility == Visibility.Collapsed;
+                    column.Visibility = Visibility.Visible;
+                    Check("COLUMN_HIDE_SHOW", hidden && column.Visibility == Visibility.Visible);
+                }
+
                 win.Close();
             }
             catch (Exception ex)

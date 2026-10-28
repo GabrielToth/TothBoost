@@ -48,13 +48,21 @@ namespace TothBoost.App
         public ProcRow(ProcessInfo p) => P = p;
         public int Pid => P.Pid;
         public string Name => P.Name;
-        public long MemMb => P.WorkingSetMb;
+        public double MemMb => P.WorkingSetMb;
+        public string MemText => P.WorkingSetMb.ToString("0.0");
         public string Session => P.SessionName;
         public string Path => P.Path ?? "—";
         public bool IsProtected => P.Protected;
         public string ProtectReason => P.Protected ? "Critical Windows process — cannot be terminated." : "";
         public string ProtectionLabel => P.Protected ? "PROTECTED" : "Allowed";
         public Brush ProtectionColor => P.Protected ? Green : Dim;
+
+        // Numeric sorting properties: the display columns are formatted strings,
+        // so the DataGrid must sort on the underlying values instead.
+        public double CpuValue => P.CpuPercent;
+        public double GpuValue => P.GpuPercent;
+        public double ReadKbs => P.IoReadKbs;
+        public double WriteKbs => P.IoWriteKbs;
 
         private static readonly Brush Green = new SolidColorBrush(Color.FromRgb(0x4A, 0xE0, 0x80));
         private static readonly Brush Dim = new SolidColorBrush(Color.FromRgb(0x9C, 0xAB, 0xBE));
@@ -74,11 +82,31 @@ namespace TothBoost.App
 
             P = newP;
 
-            if (oldMem != newP.WorkingSetMb) OnPropertyChanged(nameof(MemMb));
-            if (Math.Abs(oldCpu - newP.CpuPercent) > 0.01) OnPropertyChanged(nameof(CpuText));
-            if (Math.Abs(oldGpu - newP.GpuPercent) > 0.01) OnPropertyChanged(nameof(GpuText));
-            if (Math.Abs(oldRead - newP.IoReadKbs) > 0.01) OnPropertyChanged(nameof(ReadText));
-            if (Math.Abs(oldWrite - newP.IoWriteKbs) > 0.01) OnPropertyChanged(nameof(WriteText));
+            if (oldMem != newP.WorkingSetMb)
+            {
+                OnPropertyChanged(nameof(MemMb));
+                OnPropertyChanged(nameof(MemText));
+            }
+            if (Math.Abs(oldCpu - newP.CpuPercent) > 0.01)
+            {
+                OnPropertyChanged(nameof(CpuText));
+                OnPropertyChanged(nameof(CpuValue));
+            }
+            if (Math.Abs(oldGpu - newP.GpuPercent) > 0.01)
+            {
+                OnPropertyChanged(nameof(GpuText));
+                OnPropertyChanged(nameof(GpuValue));
+            }
+            if (Math.Abs(oldRead - newP.IoReadKbs) > 0.01)
+            {
+                OnPropertyChanged(nameof(ReadText));
+                OnPropertyChanged(nameof(ReadKbs));
+            }
+            if (Math.Abs(oldWrite - newP.IoWriteKbs) > 0.01)
+            {
+                OnPropertyChanged(nameof(WriteText));
+                OnPropertyChanged(nameof(WriteKbs));
+            }
         }
 
         private static string FormatIo(double kbs)

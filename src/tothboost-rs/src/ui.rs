@@ -1,5 +1,5 @@
 use crate::blocklist::Blocklist;
-use crate::models::{ProcessItem, ServiceItem, StartupItem, TweakItem};
+use crate::models::{ProcessItem, RiskLevel, ServiceItem, StartupItem, TweakItem};
 use crate::power::ProcessController;
 use crate::profile::{ProfileData, ProfileService};
 use crate::scanner::SystemScanner;
@@ -60,6 +60,10 @@ const CMD_PROFILE_DEFAULT: usize = 1044;
 const TIMER_ENFORCE: usize = 1;
 const WM_LOAD: u32 = WM_APP + 1;
 const ENFORCE_INTERVAL_MS: u32 = 2000;
+/// LVN_COLUMNCLICK = LVN_FIRST (-100) - 48, exposed as u32 by NMHDR.
+const LVN_COLUMNCLICK_CODE: u32 = 0xFFFF_FF6C;
+const HDF_SORTUP_BIT: u32 = 0x0400;
+const HDF_SORTDOWN_BIT: u32 = 0x0800;
 
 struct Page {
     list: HWND,
@@ -77,6 +81,38 @@ pub struct App {
     startups: Vec<StartupItem>,
     tweaks: Vec<TweakItem>,
     profiles: Vec<ProfileData>,
+    /// User-chosen sort per list: (column index, ascending).
+    proc_sort: SortState,
+    svc_sort: SortState,
+    startup_sort: SortState,
+    tweak_sort: SortState,
+    profile_sort: SortState,
+}
+
+type SortState = Option<(usize, bool)>;
+
+fn ordered(cmp: std::cmp::Ordering, ascending: bool) -> std::cmp::Ordering {
+    if ascending { cmp } else { cmp.reverse() }
+}
+
+fn risk_rank(risk: &RiskLevel) -> u8 {
+    match risk {
+        RiskLevel::Protected => 0,
+        RiskLevel::Warning => 1,
+        RiskLevel::Recommended => 2,
+        RiskLevel::Optional => 3,
+        RiskLevel::Info => 4,
+    }
+}
+
+fn proc_state_rank(p: &ProcessItem) -> u8 {
+    if p.is_blocked {
+        0
+    } else if p.is_protected {
+        2
+    } else {
+        1
+    }
 }
 
 static mut APP: Option<App> = None;
@@ -159,6 +195,46 @@ unsafe fn make_list(parent: HWND, id: usize) -> HWND {
         );
     }
     hwnd
+}
+
+/// Shows the Win32 sort arrow on the active column (all others cleared).
+unsafe fn mark_sort_arrow(list: HWND, column: usize, ascending: bool) {
+    let header = HWND(SendMessageW(list, LVM_GETHEADER, WPARAM(0), LPARAM(0)).0 as *mut _);
+    if header.0.is_null() {
+        return;
+    }
+    let count = SendMessageW(header, HDM_GETITEMCOUNT, WPARAM(0), LPARAM(0)).0 as usize;
+    for index in 0..count {
+        let mut item = HDITEMW {
+            mask: HDI_FORMAT,
+            ..Default::default()
+        };
+        let ok = SendMessageW(
+            header,
+            HDM_GETITEMW,
+            WPARAM(index),
+            LPARAM(&mut item as *mut _ as isize),
+        )
+        .0;
+        if ok == 0 {
+            continue;
+        }
+        let mut fmt = item.fmt.0 & !((HDF_SORTUP_BIT | HDF_SORTDOWN_BIT) as i32);
+        if index == column {
+            fmt |= if ascending {
+                HDF_SORTUP_BIT as i32
+            } else {
+                HDF_SORTDOWN_BIT as i32
+            };
+        }
+        item.fmt = HEADER_CONTROL_FORMAT_FLAGS(fmt);
+        SendMessageW(
+            header,
+            HDM_SETITEMW,
+            WPARAM(index),
+            LPARAM(&mut item as *mut _ as isize),
+        );
+    }
 }
 
 unsafe fn add_column(list: HWND, index: i32, width: i32, title: &str) {
@@ -503,6 +579,11 @@ pub unsafe fn install(hwnd: HWND) -> bool {
         startups: Vec::new(),
         tweaks: Vec::new(),
         profiles: Vec::new(),
+        proc_sort: None,
+        svc_sort: None,
+        startup_sort: None,
+        tweak_sort: None,
+        profile_sort: None,
     };
 
     let ptr = std::ptr::addr_of_mut!(APP);
@@ -590,6 +671,51 @@ unsafe fn sync_enforcement() {
 }
 
 impl App {
+    unsafe fn sort_by_column(&mut self, page: usize, column: usize) {
+        let current = match page {
+            0 => self.proc_sort,
+            1 => self.svc_sort,
+            2 => self.startup_sort,
+            3 => self.tweak_sort,
+            _ => self.profile_sort,
+        };
+        let next = match current {
+            Some((active, ascending)) if active == column => Some((column, !ascending)),
+            _ => Some((column, true)),
+        };
+
+        match page {
+            0 => {
+                self.proc_sort = next;
+                self.reload_processes();
+            }
+            1 => {
+                self.svc_sort = next;
+                self.reload_services();
+            }
+            2 => {
+                self.startup_sort = next;
+                self.reload_startup();
+            }
+            3 => {
+                self.tweak_sort = next;
+                self.reload_tweaks();
+            }
+            _ => {
+                self.profile_sort = next;
+                self.reload_profiles();
+            }
+        }
+
+        let ascending = next.map(|(_, asc)| asc).unwrap_or(true);
+        mark_sort_arrow(self.pages[page].list, column, ascending);
+        set_status(&format!(
+            "Sorted by column {} ({}).",
+            column + 1,
+            if ascending { "ascending" } else { "descending" }
+        ));
+    }
+
     unsafe fn reload_all(&mut self) {
         self.reload_processes();
         self.reload_services();
@@ -607,6 +733,18 @@ impl App {
 
     unsafe fn reload_processes(&mut self) {
         self.processes = SystemScanner::scan_processes();
+        if let Some((column, ascending)) = self.proc_sort {
+            self.processes.sort_by(|a, b| {
+                let cmp = match column {
+                    0 => a.pid.cmp(&b.pid),
+                    2 => a.memory_mb.cmp(&b.memory_mb),
+                    3 => proc_state_rank(a).cmp(&proc_state_rank(b)),
+                    4 => a.path.to_lowercase().cmp(&b.path.to_lowercase()),
+                    _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                };
+                ordered(cmp, ascending)
+            });
+        }
         let list = self.pages[0].list;
         list_clear(list);
         for process in &self.processes {
@@ -633,6 +771,18 @@ impl App {
 
     unsafe fn reload_services(&mut self) {
         self.services = SystemScanner::scan_services();
+        if let Some((column, ascending)) = self.svc_sort {
+            self.services.sort_by(|a, b| {
+                let cmp = match column {
+                    1 => a.display_name.to_lowercase().cmp(&b.display_name.to_lowercase()),
+                    2 => a.start_label().cmp(b.start_label()),
+                    3 => a.status.to_lowercase().cmp(&b.status.to_lowercase()),
+                    4 => risk_rank(&a.risk).cmp(&risk_rank(&b.risk)),
+                    _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                };
+                ordered(cmp, ascending)
+            });
+        }
         let list = self.pages[1].list;
         list_clear(list);
         for service in &self.services {
@@ -652,6 +802,17 @@ impl App {
 
     unsafe fn reload_startup(&mut self) {
         self.startups = SystemScanner::scan_startup();
+        if let Some((column, ascending)) = self.startup_sort {
+            self.startups.sort_by(|a, b| {
+                let cmp = match column {
+                    1 => a.location.to_lowercase().cmp(&b.location.to_lowercase()),
+                    2 => a.command.to_lowercase().cmp(&b.command.to_lowercase()),
+                    3 => a.is_enabled.cmp(&b.is_enabled),
+                    _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                };
+                ordered(cmp, ascending)
+            });
+        }
         let list = self.pages[2].list;
         list_clear(list);
         for item in &self.startups {
@@ -674,6 +835,17 @@ impl App {
 
     unsafe fn reload_tweaks(&mut self) {
         self.tweaks = RegistryTweaks::get_available_tweaks();
+        if let Some((column, ascending)) = self.tweak_sort {
+            self.tweaks.sort_by(|a, b| {
+                let cmp = match column {
+                    1 => a.category.to_lowercase().cmp(&b.category.to_lowercase()),
+                    2 => a.is_applied.cmp(&b.is_applied),
+                    3 => a.description.to_lowercase().cmp(&b.description.to_lowercase()),
+                    _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                };
+                ordered(cmp, ascending)
+            });
+        }
         let list = self.pages[3].list;
         list_clear(list);
         for tweak in &self.tweaks {
@@ -700,6 +872,19 @@ impl App {
             .iter()
             .filter_map(|name| ProfileService::load_profile(name).ok())
             .collect();
+
+        if let Some((column, ascending)) = self.profile_sort {
+            self.profiles.sort_by(|a, b| {
+                let cmp = match column {
+                    1 => a.created_utc.cmp(&b.created_utc),
+                    2 => a.services_disabled().cmp(&b.services_disabled()),
+                    3 => a.tweaks_applied().cmp(&b.tweaks_applied()),
+                    4 => a.blocked_processes.len().cmp(&b.blocked_processes.len()),
+                    _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                };
+                ordered(cmp, ascending)
+            });
+        }
 
         let list = self.pages[4].list;
         list_clear(list);
@@ -1435,6 +1620,24 @@ pub unsafe extern "system" fn wnd_proc(
                 let index =
                     SendMessageW(hwnd, TCM_GETCURSEL, WPARAM(0), LPARAM(0)).0 as usize;
                 show_page(index);
+            } else if header.code == LVN_COLUMNCLICK_CODE {
+                let info = &*(lparam.0 as *const NMLISTVIEW);
+                let page = if header.idFrom == ID_PROC_LIST {
+                    Some(0)
+                } else if header.idFrom == ID_SVC_LIST {
+                    Some(1)
+                } else if header.idFrom == ID_STARTUP_LIST {
+                    Some(2)
+                } else if header.idFrom == ID_TWEAK_LIST {
+                    Some(3)
+                } else if header.idFrom == ID_PROFILE_LIST {
+                    Some(4)
+                } else {
+                    None
+                };
+                if let (Some(page), Some(app)) = (page, app_mut()) {
+                    app.sort_by_column(page, info.iSubItem.max(0) as usize);
+                }
             }
             LRESULT(0)
         }

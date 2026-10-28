@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using TothBoost.Core.Models;
@@ -34,6 +35,7 @@ namespace TothBoost.Core.Scanners
         }
 
         private static readonly object Sync = new();
+        private static readonly object ScanLock = new();
         private static readonly Dictionary<int, ProcessSample> PrevSamples = new();
         private static readonly int ProcessorCount = Environment.ProcessorCount;
 
@@ -48,6 +50,68 @@ namespace TothBoost.Core.Scanners
 
         public List<ProcessInfo> ScanAll()
         {
+            // A manual refresh can overlap the 2-second timer. Serialize scans so
+            // CPU deltas are always measured against the previous complete scan.
+            lock (ScanLock)
+            {
+                return ScanAllCore();
+            }
+        }
+
+        /// <summary>
+        /// Reads per-process GPU utilization from the Windows "GPU Engine"
+        /// performance counters (Windows 10 1709+). Returns false when the
+        /// counters are unavailable so the UI can show "—" instead of a fake 0%.
+        /// </summary>
+        private static (bool Available, Dictionary<int, double> ByPid) ReadGpuPercent()
+        {
+            var byPid = new Dictionary<int, double>();
+            try
+            {
+                var category = new PerformanceCounterCategory("GPU Engine");
+                var data = category.ReadCategory();
+                if (data["Utilization Percentage"] is not InstanceDataCollection utilization)
+                    return (false, byPid);
+
+                foreach (string instance in utilization.Keys)
+                {
+                    var pid = ParseGpuInstancePid(instance);
+                    if (pid <= 0) continue;
+
+                    var raw = CounterSample.Calculate(utilization[instance].Sample);
+                    if (double.IsNaN(raw) || raw < 0) continue;
+                    var value = Math.Clamp(raw, 0.0, 100.0);
+                    if (byPid.TryGetValue(pid, out var current))
+                        byPid[pid] = Math.Min(100.0, current + value);
+                    else
+                        byPid[pid] = value;
+                }
+
+                return (true, byPid);
+            }
+            catch
+            {
+                return (false, byPid);
+            }
+        }
+
+        private static int ParseGpuInstancePid(string instance)
+        {
+            const string prefix = "pid_";
+            if (!instance.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return 0;
+
+            var end = instance.IndexOf('_', prefix.Length);
+            if (end < 0) return 0;
+
+            return int.TryParse(instance.AsSpan(prefix.Length, end - prefix.Length), out var pid)
+                ? pid
+                : 0;
+        }
+
+        private static List<ProcessInfo> ScanAllCore()
+        {
+            var (gpuAvailable, gpuByPid) = ReadGpuPercent();
             var result = new List<ProcessInfo>();
             Process[] procs;
             try { procs = Process.GetProcesses(); }
@@ -64,8 +128,17 @@ namespace TothBoost.Core.Scanners
                     if (pid == 0) continue; // Pula processo Idle
 
                     var name = p.ProcessName;
-                    long memMb = 0;
-                    try { memMb = p.WorkingSet64 / (1024 * 1024); } catch { }
+                    double memMb = 0;
+                    try
+                    {
+                        // Keep one decimal place: sub-1 MB processes would display
+                        // as "0" with integer division, which looked like a bug.
+                        memMb = Math.Round(p.WorkingSet64 / (1024.0 * 1024.0), 1);
+                    }
+                    catch
+                    {
+                        try { memMb = Math.Round(p.PrivateMemorySize64 / (1024.0 * 1024.0), 1); } catch { }
+                    }
 
                     string path = "";
                     try { path = p.MainModule?.FileName ?? ""; } catch { }
@@ -132,7 +205,9 @@ namespace TothBoost.Core.Scanners
                         CpuPercent = cpuPercent,
                         IoReadKbs = readKbs,
                         IoWriteKbs = writeKbs,
-                        GpuPercent = -1
+                        GpuPercent = gpuAvailable
+                            ? (gpuByPid.TryGetValue(pid, out var gpu) ? Math.Round(gpu, 1) : 0.0)
+                            : -1
                     };
 
                     if (ProtectedNames.Contains(name) || ProtectedNames.Contains(info.Name))

@@ -102,6 +102,20 @@ dotnet test tests/TothBoost.Core.Tests/TothBoost.Core.Tests.csproj
 dotnet build -c Release
 ```
 
+### Grid behavior
+- Both UIs sort by clicking a column header; clicking again reverses the order.
+  The native list keeps the chosen sort while its 2-second enforcement/refresh
+  cycle runs.
+- The .NET WPF process grid sorts numerically for PID, RAM, CPU, GPU, disk
+  read/write and alphabetically for text columns; the sort survives the
+  2-second auto-refresh.
+- .NET RAM shows one decimal (sub-1 MB processes are not rounded to `0`), CPU is
+  a real per-process delta, and GPU uses the Windows `GPU Engine` performance
+  counters (`—` when the counters are unavailable on the machine).
+- The .NET "Columns ▾" button on each tab shows/hides columns. The choice is
+  saved in `%ProgramData%\TothBoost\ui-layout.json` and restored on the next
+  launch; "Show all columns" resets the layout.
+
 ### Privilege requirements
 - The .NET app embeds `requireAdministrator` in `app.manifest`, so Windows
   always elevates it before any UI is created.

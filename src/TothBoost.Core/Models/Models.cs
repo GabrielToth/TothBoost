@@ -72,7 +72,7 @@ namespace TothBoost.Core.Models
     {
         public int Pid { get; init; }
         public required string Name { get; init; }
-        public long WorkingSetMb { get; init; }
+        public double WorkingSetMb { get; init; }
         public string? Path { get; init; }
         public string? Owner { get; init; }
         public string SessionName { get; init; } = "";
