@@ -60,6 +60,9 @@ const CMD_PROFILE_DEFAULT: usize = 1044;
 const TIMER_ENFORCE: usize = 1;
 const WM_LOAD: u32 = WM_APP + 1;
 const ENFORCE_INTERVAL_MS: u32 = 2000;
+/// Header notifications (HDN_ITEMCLICKA/W) sent by the header child window.
+const HDN_ITEMCLICKA_CODE: u32 = 0xFFFF_FED2; // -300 - 2
+const HDN_ITEMCLICKW_CODE: u32 = 0xFFFF_FEBE; // -300 - 22
 /// LVN_COLUMNCLICK = LVN_FIRST (-100) - 48, exposed as u32 by NMHDR.
 const LVN_COLUMNCLICK_CODE: u32 = 0xFFFF_FF6C;
 const HDF_SORTUP_BIT: u32 = 0x0400;
@@ -264,10 +267,11 @@ unsafe fn list_add(list: HWND, cells: &[String], checked: bool) {
     if cells.is_empty() {
         return;
     }
+    let count = SendMessageW(list, LVM_GETITEMCOUNT, WPARAM(0), LPARAM(0)).0 as i32;
     let mut buffers: Vec<Vec<u16>> = cells.iter().map(|c| wide(c)).collect();
     let mut item = LVITEMW {
         mask: LVIF_TEXT,
-        iItem: 0,
+        iItem: count,
         iSubItem: 0,
         pszText: PWSTR(buffers[0].as_mut_ptr()),
         cchTextMax: buffers[0].len() as i32,
@@ -1638,6 +1642,25 @@ pub unsafe extern "system" fn wnd_proc(
                 if let (Some(page), Some(app)) = (page, app_mut()) {
                     app.sort_by_column(page, info.iSubItem.max(0) as usize);
                 }
+            } else if header.code == HDN_ITEMCLICKA_CODE || header.code == HDN_ITEMCLICKW_CODE {
+                // Header control sends HDN_ITEMCLICK when user clicks a header column.
+                // NMHEADERW layout starts with NMHDR, followed by iItem (the column index).
+                #[repr(C)]
+                struct NmHeaderItem {
+                    hdr: NMHDR,
+                    i_item: i32,
+                    i_button: i32,
+                }
+                let info = &*(lparam.0 as *const NmHeaderItem);
+                if let Some(app) = app_mut() {
+                    let page = app.pages.iter().position(|p| {
+                        let h = HWND(SendMessageW(p.list, LVM_GETHEADER, WPARAM(0), LPARAM(0)).0 as *mut _);
+                        h == header.hwndFrom
+                    });
+                    if let Some(page) = page {
+                        app.sort_by_column(page, info.i_item.max(0) as usize);
+                    }
+                }
             }
             LRESULT(0)
         }
@@ -1754,4 +1777,46 @@ pub unsafe fn self_test_load() -> usize {
     app.reload_tweaks();
     app.reload_profiles();
     app.processes.len()
+}
+
+/// Dispatches a column click on the requested page and verifies list order.
+pub unsafe fn self_test_sort() -> bool {
+    let Some(app) = app_mut() else { return false };
+    if app.processes.len() < 2 {
+        return true;
+    }
+    // Sort page 0 (Processes) by column 0 (PID) ascending
+    app.sort_by_column(0, 0);
+    let list = app.pages[0].list;
+    let count = SendMessageW(list, LVM_GETITEMCOUNT, WPARAM(0), LPARAM(0)).0 as usize;
+    if count < 2 {
+        return true;
+    }
+
+    let read_pid = |row: usize| -> Option<u32> {
+        let mut buf = [0u16; 32];
+        let mut it = LVITEMW {
+            iSubItem: 0,
+            pszText: PWSTR(buf.as_mut_ptr()),
+            cchTextMax: 32,
+            ..Default::default()
+        };
+        let len = SendMessageW(list, LVM_GETITEMTEXTW, WPARAM(row), LPARAM(&mut it as *mut _ as isize)).0 as usize;
+        let text = String::from_utf16_lossy(&buf[..len]);
+        text.parse::<u32>().ok()
+    };
+
+    let p0 = read_pid(0);
+    let p1 = read_pid(1);
+    let Some((p0, p1)) = p0.zip(p1) else { return false };
+    if p0 > p1 {
+        return false;
+    }
+
+    // Now sort descending by column 0 (PID)
+    app.sort_by_column(0, 0);
+    let p0_desc = read_pid(0);
+    let p1_desc = read_pid(1);
+    let Some((p0_desc, p1_desc)) = p0_desc.zip(p1_desc) else { return false };
+    p0_desc >= p1_desc
 }

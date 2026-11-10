@@ -214,6 +214,7 @@ unsafe fn run_self_test(hwnd: HWND) -> Result<()> {
         &format!("{:?}", d.checkboxes),
     );
     check("STATUS_BAR", d.status_ready, "");
+    check("COLUMN_SORT", ui::self_test_sort(), "ascending and descending order verified on rendered list");
 
     let log_path = std::env::temp_dir().join("tothboost-rust-selftest.log");
     lines.push(format!("RESULT={}", if ok { "PASS" } else { "FAIL" }));

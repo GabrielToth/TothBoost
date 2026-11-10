@@ -42,7 +42,18 @@ $env:PATH = "$(Split-Path $dotnet);$(Split-Path $cargo);$env:PATH"
 # automatically so the same script works on dev boxes and GitHub runners.
 $rustToolchain = ""
 & $cargo --version *> $null
-if (-not (Get-Command link.exe -ErrorAction SilentlyContinue)) {
+$hasMsvcLinker = $false
+try {
+    $links = @(where.exe link.exe 2>$null)
+    foreach ($l in $links) {
+        if ($l -notmatch "Git\\usr\\bin" -and (Test-Path $l)) {
+            $hasMsvcLinker = $true
+            break
+        }
+    }
+} catch {}
+
+if (-not $hasMsvcLinker) {
     $rustup = Resolve-Tool "rustup" (Join-Path $env:USERPROFILE ".cargo\bin\rustup.exe")
     $toolchains = & $rustup toolchain list
     if ($toolchains -match "stable-x86_64-pc-windows-gnu") {

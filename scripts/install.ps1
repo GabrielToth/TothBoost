@@ -77,12 +77,27 @@ if (-not $cargo) {
 $env:PATH = "$(Split-Path $dotnet);$(Split-Path $cargo);$env:PATH"
 
 $rustToolchain = ""
-if (-not (Get-Command link.exe -ErrorAction SilentlyContinue)) {
+# Check if MSVC linker (Microsoft link.exe) is actually installed.
+# Git's /usr/bin/link.exe is a GNU coreutils binary, NOT MSVC linker!
+$hasMsvcLinker = $false
+try {
+    $links = @(where.exe link.exe 2>$null)
+    foreach ($l in $links) {
+        if ($l -notmatch "Git\\usr\\bin" -and (Test-Path $l)) {
+            $hasMsvcLinker = $true
+            break
+        }
+    }
+} catch {}
+
+if (-not $hasMsvcLinker) {
     $rustup = (Get-Command rustup -ErrorAction SilentlyContinue).Source
     if (-not $rustup) { $rustup = Join-Path $env:USERPROFILE ".cargo\bin\rustup.exe" }
-    $toolchains = & $rustup toolchain list
-    if ($toolchains -match "stable-x86_64-pc-windows-gnu") {
-        $rustToolchain = "+stable-x86_64-pc-windows-gnu"
+    if (Test-Path $rustup) {
+        $toolchains = & $rustup toolchain list
+        if ($toolchains -match "stable-x86_64-pc-windows-gnu") {
+            $rustToolchain = "+stable-x86_64-pc-windows-gnu"
+        }
     }
 }
 
