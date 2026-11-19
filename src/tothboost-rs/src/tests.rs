@@ -114,7 +114,10 @@ fn test_service_scanner() {
 #[test]
 fn test_startup_scanner() {
     let items = SystemScanner::scan_startup();
-    // Must never panic, even with no startup entries.
+    // Must enumerate registry entries as well as logon/boot scheduled tasks.
+    assert!(items.len() >= 10, "expected at least 10 startup items, got {}", items.len());
+    let tasks = items.iter().filter(|i| i.kind == StartupKind::ScheduledTask).count();
+    assert!(tasks > 0, "logon/boot scheduled tasks were not included in startup");
     for item in &items {
         assert!(!item.name.is_empty());
     }
@@ -418,6 +421,9 @@ fn test_startup_items_have_consistent_fields() {
             }
             StartupKind::File => {
                 assert!(!item.file_path.is_empty(), "file item without path: {}", item.name);
+            }
+            StartupKind::ScheduledTask => {
+                assert!(!item.key_path.is_empty(), "scheduled task without path: {}", item.name);
             }
         }
     }

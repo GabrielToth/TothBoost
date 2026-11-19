@@ -76,6 +76,8 @@ impl ServiceItem {
 pub enum StartupKind {
     Registry,
     File,
+    /// Logon or boot scheduled task. Disable uses `schtasks /Change /Disable`.
+    ScheduledTask,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

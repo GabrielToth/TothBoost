@@ -226,12 +226,154 @@ impl StartupManager {
             });
         }
 
+        items.extend(Self::scan_logon_tasks());
+
         items.sort_by(|a, b| {
             a.location
                 .cmp(&b.location)
                 .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
         });
         items
+    }
+
+    /// Scheduled tasks that start at logon or boot. Hourly and daily maintenance
+    /// tasks are left out: they are not startup programs.
+    fn scan_logon_tasks() -> Vec<StartupItem> {
+        let mut items = Vec::new();
+        let Ok(output) = crate::power::run_hidden("schtasks.exe", &["/query", "/xml"]) else {
+            return items;
+        };
+
+        for chunk in Self::split_task_xmls(&output) {
+            let Some((task_path, enabled, command, trigger_kinds)) = Self::parse_task_xml(chunk)
+            else {
+                continue;
+            };
+            if !trigger_kinds
+                .iter()
+                .any(|t| t == "LogonTrigger" || t == "BootTrigger")
+            {
+                continue;
+            }
+            let name = task_path
+                .rsplit('\\')
+                .next()
+                .filter(|p| !p.is_empty())
+                .unwrap_or(task_path.as_str())
+                .to_string();
+            let when = trigger_kinds
+                .iter()
+                .filter_map(|t| match t.as_str() {
+                    "LogonTrigger" => Some("Logon"),
+                    "BootTrigger" => Some("Boot"),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            items.push(StartupItem {
+                name,
+                location: format!("Scheduled task ({})", when),
+                kind: StartupKind::ScheduledTask,
+                hive: String::new(),
+                key_path: task_path.clone(),
+                command: if command.is_empty() {
+                    task_path
+                } else {
+                    command
+                },
+                file_path: String::new(),
+                is_enabled: enabled,
+            });
+        }
+        items
+    }
+
+    /// Splits `schtasks /query /xml` concatenated output into individual task blocks.
+    fn split_task_xmls(raw: &str) -> Vec<&str> {
+        let mut chunks = Vec::new();
+        let mut pos = 0;
+        while let Some(start) = raw[pos..].find("<Task ") {
+            let abs_start = pos + start;
+            if let Some(end) = raw[abs_start..].find("</Task>") {
+                let abs_end = abs_start + end + "</Task>".len();
+                chunks.push(&raw[abs_start..abs_end]);
+                pos = abs_end;
+            } else {
+                chunks.push(&raw[abs_start..]);
+                break;
+            }
+        }
+        chunks
+    }
+
+    /// Minimal tag parser for task XML: extracts (URI, enabled, command, triggers).
+    fn parse_task_xml(xml: &str) -> Option<(String, bool, String, Vec<String>)> {
+        let uri = Self::tag_text(xml, "URI")
+            .or_else(|| Self::tag_text(xml, "Uri"))
+            .unwrap_or_default();
+        if uri.is_empty() {
+            return None;
+        }
+
+        let enabled = Self::tag_text(xml, "Enabled")
+            .map(|val| !val.eq_ignore_ascii_case("false"))
+            .unwrap_or(true);
+
+        let command = Self::tag_text(xml, "Command")
+            .map(|cmd| {
+                if let Some(args) = Self::tag_text(xml, "Arguments") {
+                    format!("{} {}", cmd, args)
+                } else {
+                    cmd
+                }
+            })
+            .or_else(|| {
+                Self::tag_text(xml, "ClassId").map(|cls| format!("COM handler {}", cls))
+            })
+            .unwrap_or_default();
+
+        let mut triggers = Vec::new();
+        for trigger_tag in [
+            "LogonTrigger",
+            "BootTrigger",
+            "TimeTrigger",
+            "CalendarTrigger",
+            "IdleTrigger",
+            "EventTrigger",
+            "SessionStateChangeTrigger",
+            "RegistrationTrigger",
+            "WnfStateChangeTrigger",
+        ] {
+            if xml.contains(&format!("<{}", trigger_tag)) {
+                triggers.push(trigger_tag.to_string());
+            }
+        }
+
+        Some((uri, enabled, command, triggers))
+    }
+
+    fn tag_text(xml: &str, tag: &str) -> Option<String> {
+        let open = format!("<{}>", tag);
+        let close = format!("</{}>", tag);
+        let start = xml.find(&open)? + open.len();
+        let end = xml[start..].find(&close)? + start;
+        let text = xml[start..end].trim();
+        if text.is_empty() {
+            None
+        } else {
+            Some(text.to_string())
+        }
+    }
+
+    fn set_task_enabled(task_path: &str, enable: bool) -> Result<(), String> {
+        let action = if enable { "/enable" } else { "/disable" };
+        let output = crate::power::run_hidden("schtasks.exe", &["/change", action, "/tn", task_path])
+            .map_err(|e| format!("schtasks: {}", e))?;
+        if output.to_ascii_lowercase().contains("error") {
+            Err(output.trim().to_string())
+        } else {
+            Ok(())
+        }
     }
 
     /// Moves an enabled startup entry into quarantine.
@@ -249,6 +391,9 @@ impl StartupManager {
         });
 
         match item.kind {
+            StartupKind::ScheduledTask => {
+                return Self::set_task_enabled(&item.key_path, false);
+            }
             StartupKind::Registry => {
                 let command = Self::read_single_value(&item.hive, &item.key_path, &item.name)
                     .unwrap_or_else(|| item.command.clone());
@@ -306,6 +451,10 @@ impl StartupManager {
 
     /// Restores a quarantined entry to its original location.
     pub fn enable(item: &StartupItem) -> Result<(), String> {
+        if item.kind == StartupKind::ScheduledTask {
+            return Self::set_task_enabled(&item.key_path, true);
+        }
+
         let mut manifest = Self::load_manifest();
         let position = manifest.entries.iter().position(|e| {
             e.name.eq_ignore_ascii_case(&item.name)
