@@ -18,16 +18,14 @@ impl SystemScanner {
 
         unsafe {
             for (pid, name) in ProcessController::enumerate() {
-                let mut memory_mb = 0u64;
-                if let Ok(handle) = OpenProcess(
-                    PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
-                    FALSE,
-                    pid,
-                ) {
+                // Limited information works for protected and PPL processes that
+                // reject PROCESS_VM_READ. Zero is reserved for a real query failure.
+                let mut memory_bytes = 0u64;
+                if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid) {
                     let mut counters = PROCESS_MEMORY_COUNTERS::default();
                     counters.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
                     if K32GetProcessMemoryInfo(handle, &mut counters, counters.cb).as_bool() {
-                        memory_mb = counters.WorkingSetSize as u64 / (1024 * 1024);
+                        memory_bytes = counters.WorkingSetSize as u64;
                     }
                     let _ = CloseHandle(handle);
                 }
@@ -39,14 +37,14 @@ impl SystemScanner {
                     is_blocked: Blocklist::contains(&blocked, &name),
                     is_protected: protected,
                     name,
-                    memory_mb,
+                    memory_bytes,
                 });
             }
         }
 
         processes.sort_by(|a, b| {
-            b.memory_mb
-                .cmp(&a.memory_mb)
+            b.memory_bytes
+                .cmp(&a.memory_bytes)
                 .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
         });
         processes

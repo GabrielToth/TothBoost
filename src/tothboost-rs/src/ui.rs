@@ -108,6 +108,21 @@ fn risk_rank(risk: &RiskLevel) -> u8 {
     }
 }
 
+/// MB at 1 MB and above, KB below that, and B below 1 KB.
+pub(crate) fn format_memory(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = 1024 * 1024;
+    if bytes >= MB {
+        format!("{:.1} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.1} KB", bytes as f64 / KB as f64)
+    } else if bytes > 0 {
+        format!("{} B", bytes)
+    } else {
+        "0 B".to_string()
+    }
+}
+
 fn proc_state_rank(p: &ProcessItem) -> u8 {
     if p.is_blocked {
         0
@@ -741,7 +756,7 @@ impl App {
             self.processes.sort_by(|a, b| {
                 let cmp = match column {
                     0 => a.pid.cmp(&b.pid),
-                    2 => a.memory_mb.cmp(&b.memory_mb),
+                    2 => a.memory_bytes.cmp(&b.memory_bytes),
                     3 => proc_state_rank(a).cmp(&proc_state_rank(b)),
                     4 => a.path.to_lowercase().cmp(&b.path.to_lowercase()),
                     _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
@@ -764,7 +779,7 @@ impl App {
                 &[
                     process.pid.to_string(),
                     process.name.clone(),
-                    format!("{} MB", process.memory_mb),
+                    format_memory(process.memory_bytes),
                     state.to_string(),
                     process.path.clone(),
                 ],
@@ -1621,8 +1636,10 @@ pub unsafe extern "system" fn wnd_proc(
         WM_NOTIFY => {
             let header = &*(lparam.0 as *const NMHDR);
             if header.idFrom == ID_TAB && header.code == TCN_SELCHANGE {
-                let index =
-                    SendMessageW(hwnd, TCM_GETCURSEL, WPARAM(0), LPARAM(0)).0 as usize;
+                // TCM_GETCURSEL belongs to the tab control. Sending it to the
+                // main window always returns the first page, so Services never appeared.
+                let index = SendMessageW(header.hwndFrom, TCM_GETCURSEL, WPARAM(0), LPARAM(0))
+                    .0 as usize;
                 show_page(index);
             } else if header.code == LVN_COLUMNCLICK_CODE {
                 let info = &*(lparam.0 as *const NMLISTVIEW);

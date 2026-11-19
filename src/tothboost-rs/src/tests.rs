@@ -1,4 +1,5 @@
 use crate::blocklist::Blocklist;
+use crate::ui::format_memory;
 use crate::elevation::ElevationManager;
 use crate::models::{ActionReport, RiskLevel, StartupKind};
 use crate::power::ProcessController;
@@ -70,11 +71,38 @@ fn test_process_scanner() {
     assert!(procs.iter().any(|p| p.pid > 0 && !p.name.is_empty()));
     // Protected processes must be flagged so the UI can refuse to kill them.
     assert!(procs.iter().any(|p| p.is_protected));
+    // A running process always occupies memory. In an un-elevated cargo test,
+    // a handful of system processes reject access even with query-limited,
+    // but the vast majority (>95%) report a working set and none report a
+    // negative or nonsensical value.
+    let with_mem = procs.iter().filter(|p| p.memory_bytes > 0).count();
+    assert!(
+        with_mem as f64 / procs.len() as f64 > 0.95,
+        "most processes must report memory (got {} / {})",
+        with_mem,
+        procs.len()
+    );
+}
+
+#[test]
+fn test_memory_units_scale_down() {
+    assert_eq!(format_memory(0), "0 B");
+    assert_eq!(format_memory(512), "512 B");
+    assert_eq!(format_memory(1024), "1.0 KB");
+    assert_eq!(format_memory(1536), "1.5 KB");
+    assert_eq!(format_memory(1024 * 1024), "1.0 MB");
+    assert_eq!(format_memory(1024 * 1024 + 512 * 1024), "1.5 MB");
 }
 
 #[test]
 fn test_service_scanner() {
+    let started = std::time::Instant::now();
     let services = SystemScanner::scan_services();
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed.as_millis() < 2000,
+        "service scan took {:?}; the Services tab would look frozen", elapsed
+    );
     assert!(!services.is_empty(), "Services should be enumerated");
     assert!(
         services.iter().all(|s| s.start_type <= 4),
@@ -361,6 +389,20 @@ fn test_profile_capture_reflects_current_system() {
     assert!(profile.created_utc.ends_with("UTC"));
     assert!(profile.created_utc.len() >= 20);
     assert!(profile.services.iter().all(|(name, start)| !name.is_empty() && *start <= 4));
+}
+
+#[test]
+fn test_startup_includes_windows_disabled_apps() {
+    let items = SystemScanner::scan_startup();
+    assert!(
+        items.len() >= 6,
+        "startup list is missing Task Manager entries, found {}",
+        items.len()
+    );
+    assert!(
+        items.iter().any(|item| !item.is_enabled),
+        "disabled Windows startup apps were not listed"
+    );
 }
 
 #[test]

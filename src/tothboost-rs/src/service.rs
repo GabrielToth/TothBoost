@@ -109,19 +109,47 @@ impl ServiceManager {
     }
 
     /// Reads the current Start value from the registry.
+    /// The parent services key stays open so a full scan does not pay a
+    /// registry open for every service (that froze the Services tab).
     pub fn get_start_type(name: &str) -> std::result::Result<u32, String> {
         unsafe {
-            let subkey = Self::service_subkey(name);
+            static mut SERVICES_KEY: Option<HKEY> = None;
+            let key_ptr = std::ptr::addr_of_mut!(SERVICES_KEY);
+            if (*key_ptr).is_none() {
+                let mut key = HKEY::default();
+                if RegOpenKeyExW(
+                    HKEY_LOCAL_MACHINE,
+                    w!("SYSTEM\\CurrentControlSet\\Services"),
+                    0,
+                    KEY_READ,
+                    &mut key,
+                )
+                .is_err()
+                {
+                    return Err("Cannot open services key".into());
+                }
+                *key_ptr = Some(key);
+            }
+
+            let parent = (*key_ptr).unwrap_or_default();
+            let subkey: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
             let mut key = HKEY::default();
-            if RegOpenKeyExW(HKEY_LOCAL_MACHINE, PCWSTR(subkey.as_ptr()), 0, KEY_READ, &mut key).is_err() {
+            if RegOpenKeyExW(parent, PCWSTR(subkey.as_ptr()), 0, KEY_READ, &mut key).is_err() {
                 return Err(format!("Cannot open service key '{}'", name));
             }
             let mut buf = [0u8; 4];
             let mut len = 4u32;
             let mut ty = REG_VALUE_TYPE::default();
-            let r = RegQueryValueExW(key, w!("Start"), None, Some(&mut ty), Some(buf.as_mut_ptr()), Some(&mut len));
+            let result = RegQueryValueExW(
+                key,
+                w!("Start"),
+                None,
+                Some(&mut ty),
+                Some(buf.as_mut_ptr()),
+                Some(&mut len),
+            );
             let _ = RegCloseKey(key);
-            if r.is_ok() && ty == REG_DWORD {
+            if result.is_ok() && ty == REG_DWORD {
                 Ok(u32::from_ne_bytes(buf))
             } else {
                 Err(format!("Failed reading Start for '{}'", name))

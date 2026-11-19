@@ -57,6 +57,35 @@ const RUN_KEYS: &[(&str, &str, &str)] = &[
     ),
 ];
 
+/// Where Task Manager stores the enabled/disabled flag. Disabled apps are
+/// removed from Run, so reading Run alone hides most of the Startup list.
+const APPROVED_KEYS: &[(&str, &str)] = &[
+    (
+        "HKLM",
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run",
+    ),
+    (
+        "HKCU",
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run",
+    ),
+    (
+        "HKLM",
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32",
+    ),
+    (
+        "HKCU",
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32",
+    ),
+    (
+        "HKLM",
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder",
+    ),
+    (
+        "HKCU",
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder",
+    ),
+];
+
 impl StartupManager {
     fn root() -> PathBuf {
         crate::blocklist::Blocklist::data_dir().join("Restoration")
@@ -87,9 +116,14 @@ impl StartupManager {
     /// every entry currently held in quarantine (reported as disabled).
     pub fn scan_all() -> Vec<StartupItem> {
         let mut items: Vec<StartupItem> = Vec::new();
+        let approved = Self::read_startup_approved();
 
         for (hive, key_path, label) in RUN_KEYS {
             for (name, command) in Self::read_values(hive, key_path) {
+                let enabled = approved
+                    .get(&(hive.to_string(), name.to_ascii_lowercase()))
+                    .copied()
+                    .unwrap_or(true);
                 items.push(StartupItem {
                     name,
                     location: (*label).to_string(),
@@ -98,9 +132,35 @@ impl StartupManager {
                     key_path: (*key_path).to_string(),
                     command,
                     file_path: String::new(),
-                    is_enabled: true,
+                    is_enabled: enabled,
                 });
             }
+        }
+
+        // Task Manager removes a disabled app from Run and keeps only its
+        // name plus a binary flag. The original command is gone, but the app
+        // still belongs on the Startup list.
+        for ((hive, name), enabled) in &approved {
+            if *enabled {
+                continue;
+            }
+            let already = items.iter().any(|item| {
+                item.hive.eq_ignore_ascii_case(hive) && item.name.eq_ignore_ascii_case(name)
+            });
+            if already {
+                continue;
+            }
+            items.push(StartupItem {
+                name: name.clone(),
+                location: format!("{} Run (disabled)", hive),
+                kind: StartupKind::Registry,
+                hive: hive.clone(),
+                key_path: "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run"
+                    .to_string(),
+                command: "Disabled in Windows startup".to_string(),
+                file_path: String::new(),
+                is_enabled: false,
+            });
         }
 
         for folder in Self::startup_folders() {
@@ -328,6 +388,60 @@ impl StartupManager {
 
     fn wide(value: &str) -> Vec<u16> {
         value.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    /// Name -> enabled, keyed by hive. The first byte of the StartupApproved
+    /// binary is 2 (or 6) when Task Manager has disabled the app.
+    fn read_startup_approved() -> std::collections::HashMap<(String, String), bool> {
+        let mut result = std::collections::HashMap::new();
+        for (hive, key_path) in APPROVED_KEYS {
+            for (name, bytes) in Self::read_binary_values(hive, key_path) {
+                let enabled = bytes.first().map(|flag| *flag != 2 && *flag != 6).unwrap_or(true);
+                result.insert(((*hive).to_string(), name.to_ascii_lowercase()), enabled);
+            }
+        }
+        result
+    }
+
+    fn read_binary_values(hive: &str, key_path: &str) -> Vec<(String, Vec<u8>)> {
+        let mut result = Vec::new();
+        unsafe {
+            let mut key = HKEY::default();
+            let path = Self::wide(key_path);
+            if RegOpenKeyExW(Self::hive_handle(hive), PCWSTR(path.as_ptr()), 0, KEY_READ, &mut key)
+                .is_err()
+            {
+                return result;
+            }
+            let mut index = 0u32;
+            loop {
+                let mut name_buf = [0u16; 512];
+                let mut name_len = name_buf.len() as u32;
+                let mut type_val = 0u32;
+                let mut data_buf = [0u8; 64];
+                let mut data_len = data_buf.len() as u32;
+                let ok = RegEnumValueW(
+                    key,
+                    index,
+                    PWSTR(name_buf.as_mut_ptr()),
+                    &mut name_len,
+                    None,
+                    Some(&mut type_val),
+                    Some(data_buf.as_mut_ptr()),
+                    Some(&mut data_len),
+                );
+                if ok.is_err() {
+                    break;
+                }
+                let name = String::from_utf16_lossy(&name_buf[..name_len as usize]);
+                if !name.is_empty() && type_val == REG_BINARY.0 {
+                    result.push((name, data_buf[..data_len as usize].to_vec()));
+                }
+                index += 1;
+            }
+            let _ = RegCloseKey(key);
+        }
+        result
     }
 
     fn read_values(hive: &str, key_path: &str) -> Vec<(String, String)> {

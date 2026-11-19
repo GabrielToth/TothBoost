@@ -37,7 +37,7 @@ pub struct ProcessItem {
     pub pid: u32,
     pub name: String,
     pub path: String,
-    pub memory_mb: u64,
+    pub memory_bytes: u64,
     pub is_protected: bool,
     pub is_blocked: bool,
 }
