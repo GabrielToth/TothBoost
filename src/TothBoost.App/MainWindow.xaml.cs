@@ -113,7 +113,7 @@ namespace TothBoost.App
             BadgeBaseline.Visibility = Visibility.Visible;
             TxtBadgeAdmin.Text = "ADMINISTRATOR";
 
-            StartupFilter.ItemsSource = new[] { "All", "Enabled", "Disabled (Quarantine)" };
+            StartupFilter.ItemsSource = new[] { "All", "Enabled", "Disabled" };
             StartupFilter.SelectedIndex = 0;
 
             TaskFilter.ItemsSource = new[] { "All", "Enabled", "Disabled" };
@@ -643,12 +643,46 @@ namespace TothBoost.App
                     try
                     {
                         StartupScanner.SetDisabled(item.Item, true);
-                        report.Add(item.Name, "quarantined", true);
+                        report.Add(item.Name, "disabled", true);
                     }
                     catch (Exception ex) { report.AddError(item.Name, "disable startup", ex); }
                 }
                 return report;
             }, "Disable Startup Items");
+        }
+
+        private async void BtnStartupDisableSuggested_Click(object sender, RoutedEventArgs e)
+        {
+            var suggested = _startupAll.Where(r => r.IsOn && r.IsSuggested).ToList();
+            if (suggested.Count == 0)
+            {
+                MessageBox.Show("All suggested startup items are already disabled.", "TothBoost", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var res = MessageBox.Show(
+                $"Disable {suggested.Count} suggested startup item(s)?\n\n" +
+                "These items (telemetry, background updaters, non-critical services) are safe to disable to improve boot time and responsiveness.",
+                "Disable Suggested Startup Items",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (res != MessageBoxResult.Yes) return;
+
+            await RunAction(() =>
+            {
+                var report = new ActionReport();
+                foreach (var item in suggested)
+                {
+                    try
+                    {
+                        StartupScanner.SetDisabled(item.Item, true);
+                        report.Add(item.Name, "disabled", true);
+                    }
+                    catch (Exception ex) { report.AddError(item.Name, "disable startup", ex); }
+                }
+                return report;
+            }, "Disable Suggested Startup Items");
         }
 
         private async void StartupRowToggle_Click(object sender, RoutedEventArgs e)
@@ -661,11 +695,11 @@ namespace TothBoost.App
                 try
                 {
                     StartupScanner.SetDisabled(r.Item, disable);
-                    report.Add(r.Name, disable ? "quarantined" : "enabled", true);
+                    report.Add(r.Name, disable ? "disabled" : "enabled", true);
                 }
                 catch (Exception ex) { report.AddError(r.Name, "toggle startup", ex); }
                 return report;
-            }, disable ? "Quarantine Startup" : "Enable Startup");
+            }, disable ? "Disable Startup" : "Enable Startup");
         }
 
         // ---------- Services ----------

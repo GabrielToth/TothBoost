@@ -140,9 +140,91 @@ namespace TothBoost.App
         public string Name => Item.Name;
         public string Location => Item.Location;
         public string Command => Item.Command ?? "—";
-        public string StatusLabel => Item.DisabledByTothBoost ? "Disabled (Quarantine)" : "Active";
+        public string StatusLabel => Item.DisabledByTothBoost ? "Disabled" : "Active";
         public bool IsOn => !Item.DisabledByTothBoost;
-        public string ToggleTip => IsOn ? "Disable (move to quarantine)" : "Enable (restore from quarantine)";
+        public string ToggleTip => IsOn ? "Disable" : "Enable";
+        public string Classification => GetClassification(Item);
+        public bool IsSuggested => Classification.Contains("Suggested");
+
+        private static string GetClassification(StartupItem item)
+        {
+            var name = (item.Name ?? "").ToLowerInvariant();
+            var cmd = (item.Command ?? "").ToLowerInvariant();
+            var loc = (item.Location ?? "").ToLowerInvariant();
+
+            // Critical Windows system components
+            if (name.Contains("cachetask") || loc.Contains("wininet\\cachetask") ||
+                name.Contains("msctfmonitor") || loc.Contains("textservicesframework\\msctfmonitor") ||
+                loc.Contains("autochk\\proxy") || loc.Contains("spaceport") ||
+                loc.Contains("softwareprotectionplatform") || loc.Contains("data integrity scan") ||
+                name.Contains("verifiedpublishercertstorecheck") ||
+                cmd.Contains("userinit.exe") || cmd.Contains("winlogon.exe") ||
+                cmd.Contains("smss.exe") || cmd.Contains("csrss.exe") || cmd.Contains("lsass.exe"))
+            {
+                return "System (Critical)";
+            }
+
+            // System suggested to disable for gaming/performance
+            if (name.Contains("securityhealth") || cmd.Contains("securityhealthsystray") ||
+                name.Contains("queuereporting") || loc.Contains("windows error reporting") ||
+                cmd.Contains("wermgr.exe") || name.Contains("device user") ||
+                cmd.Contains("devicecensus.exe") || name.Contains("clipesuconsumer") ||
+                cmd.Contains("clipesuconsumer.exe") || loc.Contains("exploitguard") ||
+                loc.Contains("autopilot") || (loc.StartsWith("\\") && loc.Contains("provisioning")) ||
+                cmd.Contains("provtool.exe") || (loc.StartsWith("\\") && loc.Contains("workplace join")) ||
+                cmd.Contains("dsregcmd.exe") || loc.Contains("appxdeploymentclient") ||
+                loc.Contains("active directory rights management") || name.Contains("ceip") ||
+                loc.Contains("customer experience improvement program") ||
+                name.Contains("onedrive") || cmd.Contains("onedrive.exe") || loc.Contains("onedrive") ||
+                name.Contains("cortana") || name.Contains("edgeupdate") || cmd.Contains("microsoftedgeupdate"))
+            {
+                return "System (Suggested)";
+            }
+
+            // Hardware / Driver utilities
+            if (name.Contains("realtek") || cmd.Contains("rtkauduservice") || cmd.Contains("ravcpl") ||
+                name.Contains("nvidia") || cmd.Contains("nvbackend") || cmd.Contains("nvcontainer") ||
+                cmd.Contains("shadowplay") || name.Contains("amd") || name.Contains("radeon") ||
+                cmd.Contains("amdrsserv") || name.Contains("intel") || cmd.Contains("igfx") ||
+                name.Contains("synaptics") || name.Contains("logitech") || cmd.Contains("lghub") ||
+                name.Contains("razer") || cmd.Contains("synapse") || name.Contains("corsair") ||
+                cmd.Contains("icue") || name.Contains("asus") || cmd.Contains("armoury") ||
+                name.Contains("alienware"))
+            {
+                return "Driver (Caution)";
+            }
+
+            // User apps suggested to disable for faster boot
+            if (name.Contains("steam") || cmd.Contains("steam.exe") ||
+                name.Contains("epic") || cmd.Contains("epicgames") ||
+                name.Contains("discord") || cmd.Contains("discord.exe") ||
+                name.Contains("spotify") || cmd.Contains("spotify.exe") ||
+                name.Contains("skype") || name.Contains("telegram") ||
+                name.Contains("whatsapp") || name.Contains("slack") ||
+                name.Contains("teams") || name.Contains("torrent") ||
+                cmd.Contains("torrent") || name.Contains("googleupdate") ||
+                cmd.Contains("googleupdate") || name.Contains("adobe") ||
+                cmd.Contains("acrotray") || name.Contains("ccleaner") ||
+                name.Contains("pm2") || cmd.Contains("pm2") ||
+                name.Contains("battle.net") || name.Contains("riot") ||
+                name.Contains("origin"))
+            {
+                return "User (Suggested)";
+            }
+
+            // Other system tasks
+            if (loc.StartsWith("\\microsoft\\windows") || loc.Contains("microsoft\\windows") ||
+                cmd.Contains("system32\\rundll32.exe") || name.Contains("calibration loader") ||
+                name.Contains("synchronize language") || name.Contains("languagecomponents") ||
+                name.Contains("diskdiagnostic") || name.Contains("usertask") ||
+                name.Contains("work folders") || name.Contains("offline files") ||
+                name.Contains("systemsoundsservice"))
+            {
+                return "System (Safe)";
+            }
+
+            return "User App";
+        }
     }
 
     public class TweakRow : RowBase

@@ -432,6 +432,94 @@ fn test_startup_items_have_consistent_fields() {
 }
 
 #[test]
+fn test_startup_classification_rules() {
+    use crate::models::{classify_startup, StartupClassification, StartupItem, StartupKind};
+
+    // CacheTask must be critical
+    let cache_task = StartupItem {
+        name: "CacheTask".into(),
+        location: "Task Scheduler".into(),
+        kind: StartupKind::ScheduledTask,
+        hive: String::new(),
+        key_path: "\\Microsoft\\Windows\\Wininet\\CacheTask".into(),
+        command: "COM {0358B920-0AC7-461F-98F4-58E32CDCB315}".into(),
+        file_path: String::new(),
+        is_enabled: true,
+    };
+    assert_eq!(classify_startup(&cache_task), StartupClassification::SystemCritical);
+    assert!(!cache_task.is_suggested());
+
+    // MsCtfMonitor must be critical
+    let ctf_task = StartupItem {
+        name: "MsCtfMonitor".into(),
+        location: "Task Scheduler".into(),
+        kind: StartupKind::ScheduledTask,
+        hive: String::new(),
+        key_path: "\\Microsoft\\Windows\\TextServicesFramework\\MsCtfMonitor".into(),
+        command: "COM {01575CFE-9A55-4003-A5E1-F38D1EBDC665}".into(),
+        file_path: String::new(),
+        is_enabled: true,
+    };
+    assert_eq!(classify_startup(&ctf_task), StartupClassification::SystemCritical);
+
+    // SecurityHealth must be System (Suggested) - safe to disable
+    let sec_health = StartupItem {
+        name: "SecurityHealth".into(),
+        location: "HKLM Run".into(),
+        kind: StartupKind::Registry,
+        hive: "HKLM".into(),
+        key_path: "Software\\Microsoft\\Windows\\CurrentVersion\\Run".into(),
+        command: "C:\\Windows\\system32\\SecurityHealthSystray.exe".into(),
+        file_path: String::new(),
+        is_enabled: true,
+    };
+    assert_eq!(classify_startup(&sec_health), StartupClassification::SystemSuggested);
+    assert!(sec_health.is_suggested());
+
+    // QueueReporting (WER) must be System (Suggested)
+    let wer_task = StartupItem {
+        name: "QueueReporting".into(),
+        location: "Task Scheduler".into(),
+        kind: StartupKind::ScheduledTask,
+        hive: String::new(),
+        key_path: "\\Microsoft\\Windows\\Windows Error Reporting\\QueueReporting".into(),
+        command: "%windir%\\system32\\wermgr.exe".into(),
+        file_path: String::new(),
+        is_enabled: true,
+    };
+    assert_eq!(classify_startup(&wer_task), StartupClassification::SystemSuggested);
+    assert!(wer_task.is_suggested());
+
+    // Realtek audio driver helper must be Driver (Caution)
+    let realtek = StartupItem {
+        name: "RtkAudUService".into(),
+        location: "HKLM Run".into(),
+        kind: StartupKind::Registry,
+        hive: "HKLM".into(),
+        key_path: "Software\\Microsoft\\Windows\\CurrentVersion\\Run".into(),
+        command: "\"C:\\Windows\\System32\\RtkAudUService64.exe\" -background".into(),
+        file_path: String::new(),
+        is_enabled: true,
+    };
+    assert_eq!(classify_startup(&realtek), StartupClassification::DriverCaution);
+    assert!(!realtek.is_suggested());
+
+    // Steam must be User (Suggested)
+    let steam = StartupItem {
+        name: "Steam".into(),
+        location: "HKCU Run".into(),
+        kind: StartupKind::Registry,
+        hive: "HKCU".into(),
+        key_path: "Software\\Microsoft\\Windows\\CurrentVersion\\Run".into(),
+        command: "\"C:\\Program Files (x86)\\Steam\\steam.exe\" -silent".into(),
+        file_path: String::new(),
+        is_enabled: true,
+    };
+    assert_eq!(classify_startup(&steam), StartupClassification::UserSuggested);
+    assert!(steam.is_suggested());
+}
+
+#[test]
 fn test_scheduled_task_csv_parser() {
     assert_eq!(parse_csv_line("a,b,c"), vec!["a", "b", "c"]);
     assert_eq!(

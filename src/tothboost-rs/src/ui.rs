@@ -42,6 +42,7 @@ const CMD_SVC_START: usize = 1015;
 const CMD_STARTUP_REFRESH: usize = 1020;
 const CMD_STARTUP_DISABLE: usize = 1021;
 const CMD_STARTUP_ENABLE: usize = 1022;
+const CMD_STARTUP_SUGGESTED: usize = 1023;
 
 const CMD_TWEAK_REFRESH: usize = 1030;
 const CMD_TWEAK_APPLY: usize = 1031;
@@ -487,15 +488,17 @@ pub unsafe fn install(hwnd: HWND) -> bool {
             "Startup",
             &[
                 (CMD_STARTUP_REFRESH, "Refresh", 90),
-                (CMD_STARTUP_DISABLE, "Disable (Quarantine)", 170),
-                (CMD_STARTUP_ENABLE, "Enable (Restore)", 150),
+                (CMD_STARTUP_DISABLE, "Disable", 100),
+                (CMD_STARTUP_ENABLE, "Enable", 100),
+                (CMD_STARTUP_SUGGESTED, "Disable Suggested", 150),
             ],
             ID_STARTUP_LIST,
             &[
-                (200, "Name"),
-                (240, "Location"),
-                (430, "Command"),
-                (110, "State"),
+                (170, "Name"),
+                (150, "Classification"),
+                (170, "Location"),
+                (380, "Command"),
+                (90, "State"),
             ],
         ),
         (
@@ -824,9 +827,10 @@ impl App {
         if let Some((column, ascending)) = self.startup_sort {
             self.startups.sort_by(|a, b| {
                 let cmp = match column {
-                    1 => a.location.to_lowercase().cmp(&b.location.to_lowercase()),
-                    2 => a.command.to_lowercase().cmp(&b.command.to_lowercase()),
-                    3 => a.is_enabled.cmp(&b.is_enabled),
+                    1 => a.classification().label().cmp(b.classification().label()),
+                    2 => a.location.to_lowercase().cmp(&b.location.to_lowercase()),
+                    3 => a.command.to_lowercase().cmp(&b.command.to_lowercase()),
+                    4 => a.is_enabled.cmp(&b.is_enabled),
                     _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
                 };
                 ordered(cmp, ascending)
@@ -839,12 +843,13 @@ impl App {
                 list,
                 &[
                     item.name.clone(),
+                    item.classification().label().into(),
                     item.location.clone(),
                     item.command.clone(),
                     if item.is_enabled {
                         "Enabled".into()
                     } else {
-                        "Quarantined".into()
+                        "Disabled".into()
                     },
                 ],
                 false,
@@ -958,6 +963,7 @@ impl App {
             }
             CMD_STARTUP_DISABLE => self.startup_action(true),
             CMD_STARTUP_ENABLE => self.startup_action(false),
+            CMD_STARTUP_SUGGESTED => self.startup_disable_suggested(),
 
             CMD_TWEAK_REFRESH => {
                 self.reload_tweaks();
@@ -1248,7 +1254,50 @@ impl App {
         set_status(&format!(
             "{} startup entrie(s) {}.",
             changed,
-            if disable { "quarantined" } else { "restored" }
+            if disable { "disabled" } else { "enabled" }
+        ));
+        if !failures.is_empty() {
+            notify(&failures.join("\n"), "Startup errors");
+        }
+    }
+
+    unsafe fn startup_disable_suggested(&mut self) {
+        let suggested_enabled: Vec<usize> = self
+            .startups
+            .iter()
+            .enumerate()
+            .filter(|(_, it)| it.is_enabled && it.is_suggested())
+            .map(|(idx, _)| idx)
+            .collect();
+
+        if suggested_enabled.is_empty() {
+            set_status("All suggested startup items are already disabled.");
+            return;
+        }
+
+        let question = format!(
+            "Disable {} suggested startup item(s)?\n\nThese items (telemetry, background updaters, non-critical services) are safe to disable to improve boot time and responsiveness.",
+            suggested_enabled.len()
+        );
+        if !confirm(&question, "Disable Suggested Startup Items") {
+            return;
+        }
+
+        let mut changed = 0usize;
+        let mut failures = Vec::new();
+        for idx in suggested_enabled {
+            let item = &self.startups[idx];
+            match StartupManager::disable(item) {
+                Ok(()) => changed += 1,
+                Err(e) => failures.push(format!("{}: {}", item.name, e)),
+            }
+        }
+
+        self.reload_startup();
+        self.reload_profiles();
+        set_status(&format!(
+            "{} suggested startup item(s) disabled.",
+            changed
         ));
         if !failures.is_empty() {
             notify(&failures.join("\n"), "Startup errors");

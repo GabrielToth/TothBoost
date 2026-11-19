@@ -205,7 +205,7 @@ unsafe fn run_self_test(hwnd: HWND) -> Result<()> {
     );
     check(
         "TABLE_COLUMNS",
-        d.columns == [5, 5, 4, 4, 5],
+        d.columns == [5, 5, 5, 4, 5],
         &format!("{:?}", d.columns),
     );
     check(

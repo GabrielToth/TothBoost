@@ -124,7 +124,8 @@
                             <Separator Width="24"/>
                             <Button x:Name="BtnStartupSelectAll" Style="{StaticResource BtnPrimary}" Content="Select All" Click="BtnStartupSelectAll_Click"/>
                             <Button x:Name="BtnStartupEnableSel" Style="{StaticResource BtnGreen}" Content="Enable Selected" Click="BtnStartupEnableSel_Click"/>
-                            <Button x:Name="BtnStartupDisableSel" Style="{StaticResource BtnRed}" Content="Disable Selected (Quarantine)" Click="BtnStartupDisableSel_Click"/>
+                            <Button x:Name="BtnStartupDisableSel" Style="{StaticResource BtnRed}" Content="Disable Selected" Click="BtnStartupDisableSel_Click"/>
+                            <Button x:Name="BtnStartupDisableSuggested" Style="{StaticResource BtnAccent}" Content="Disable Suggested" Click="BtnStartupDisableSuggested_Click"/>
                             <Button x:Name="BtnStartupColumns" Style="{StaticResource BtnPrimary}" Content="Columns ▾" Click="ColumnsButton_Click" Tag="{Binding ElementName=GridStartups}" ToolTip="Choose which columns are visible"/>
                         </WrapPanel>
                     </Border>
@@ -145,10 +146,11 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="220" SortMemberPath="Name"/>
-                            <DataGridTextColumn Header="Location" Binding="{Binding Location}" Width="260" SortMemberPath="Location"/>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200" SortMemberPath="Name"/>
+                            <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="150" SortMemberPath="Classification"/>
+                            <DataGridTextColumn Header="Location" Binding="{Binding Location}" Width="240" SortMemberPath="Location"/>
                             <DataGridTextColumn Header="Command / Target Path" Binding="{Binding Command}" Width="*" SortMemberPath="Command"/>
-                            <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="160" SortMemberPath="StatusLabel"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="110" SortMemberPath="StatusLabel"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>
