@@ -26,6 +26,8 @@ TothBoost is available both as a feature-rich **C# / .NET 10 (WPF)** WPF applica
 - **🌐 Network & Ping Optimization**: Flushes DNS cache, disables Windows Network Throttling (`NetworkThrottlingIndex = 0xFFFFFFFF`), and sets `SystemResponsiveness` to 0.
 - **⚙️ Gaming Registry Tweaks**: One-click disabling of Windows GameDVR, background telemetry, and overlay overhead.
 - **🛡️ Protected Process Guard**: Automatic safety rules preventing termination or trimming of kernel processes (`csrss.exe`, `lsass.exe`, `svchost.exe`).
+- **🚀 Smart Startup Classification**: Evaluates startup entries and scheduled tasks into risk levels (`System (Critical)`, `System (Suggested)`, `Driver (Caution)`, `User (Suggested)`) with safe 1-click disabling of suggested entries.
+- **🔥 Barebones "Extreme" Profile**: Auto-generated high-performance gaming profile that sets unneeded services and startup items to disabled, applies all tweaks, blocks telemetry/updater processes, while strictly protecting critical Windows system components.
 
 ---
 
@@ -49,7 +51,10 @@ For enthusiasts demanding absolute zero overhead and maximum gaming FPS:
 - **Reversible startup quarantine**: registry values and Startup-folder files
   are moved to `%ProgramData%\TothBoost\Restoration` and can be restored.
 - **Profiles**: capture services, tweaks, startup entries and the blocklist;
-  a `Default` baseline is created automatically and cannot be deleted.
+  a `Default` baseline and an aggressive `Extreme` gaming profile are created
+  automatically. User profiles and the Extreme profile can be customized and
+  overwritten with confirmation, while `Default` remains protected as a safe
+  restore point. Includes a dedicated "Apply Extreme" one-click action.
 
 ### Compatibility (Windows 10/11 vs. legacy)
 
