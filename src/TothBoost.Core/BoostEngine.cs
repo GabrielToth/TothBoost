@@ -41,6 +41,21 @@ namespace TothBoost.Core
             return (rpOk, rpMsg);
         }
 
+        private static bool IsCriticalTask(string fullPath)
+        {
+            if (string.IsNullOrWhiteSpace(fullPath)) return false;
+            var lower = fullPath.ToLowerInvariant();
+            return lower.Contains("cachetask")
+                || lower.Contains("msctfmonitor")
+                || lower.Contains("autochk\\proxy")
+                || lower.Contains("spaceport")
+                || lower.Contains("softwareprotectionplatform")
+                || lower.Contains("data integrity scan")
+                || lower.Contains("verifiedpublishercertstorecheck")
+                || lower.Contains("userinit")
+                || lower.Contains("winlogon");
+        }
+
         public void EnsureBaseline()
         {
             if (!SnapshotService.BaselineExists)
@@ -80,7 +95,7 @@ namespace TothBoost.Core
                     .Select(t => new ProfileTaskState
                     {
                         FullPath = t.FullPath,
-                        Enabled = false
+                        Enabled = IsCriticalTask(t.FullPath)
                     })
                     .ToList(),
                 Startups = startups
@@ -182,6 +197,7 @@ namespace TothBoost.Core
             var currentTasks = GetTasks();
             foreach (var tState in capture.Tasks)
             {
+                if (IsCriticalTask(tState.FullPath) && !tState.Enabled) continue;
                 var current = currentTasks.FirstOrDefault(x => x.FullPath.Equals(tState.FullPath, StringComparison.OrdinalIgnoreCase));
                 if (current is null || current.Enabled == tState.Enabled) continue;
                 try

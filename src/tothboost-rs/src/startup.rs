@@ -365,7 +365,7 @@ impl StartupManager {
         }
     }
 
-    fn set_task_enabled(task_path: &str, enable: bool) -> Result<(), String> {
+    pub(crate) fn set_task_enabled(task_path: &str, enable: bool) -> Result<(), String> {
         let action = if enable { "/enable" } else { "/disable" };
         let output = crate::power::run_hidden("schtasks.exe", &["/change", action, "/tn", task_path])
             .map_err(|e| format!("schtasks: {}", e))?;

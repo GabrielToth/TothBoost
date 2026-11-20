@@ -218,13 +218,21 @@ impl ProfileService {
             "googleupdate.exe".into(),
         ];
 
+        let tasks = SystemScanner::scan_scheduled_tasks()
+            .into_iter()
+            .map(|task| {
+                let keep_enabled = is_critical_task_path(&task.full_path);
+                (task.full_path, keep_enabled)
+            })
+            .collect();
+
         ProfileData {
             name: "Extreme".into(),
             created_utc: now_label(),
             services,
             tweaks,
             startup,
-            tasks: Vec::new(),
+            tasks,
             blocked_processes,
         }
     }
@@ -310,6 +318,22 @@ impl ProfileService {
             }
         }
 
+        // Scheduled tasks
+        for (path, enabled) in &data.tasks {
+            if is_critical_task_path(path) && !*enabled {
+                continue;
+            }
+            match StartupManager::set_task_enabled(path, *enabled) {
+                Ok(()) => report.add(
+                    path,
+                    if *enabled { "task enable" } else { "task disable" },
+                    true,
+                    "",
+                ),
+                Err(e) => report.add(path, "task", false, &e),
+            }
+        }
+
         // Persistent blocklist
         match Blocklist::save(&data.blocked_processes) {
             Ok(()) => report.add(
@@ -323,6 +347,20 @@ impl ProfileService {
 
         report
     }
+}
+
+/// Determines if a scheduled task path belongs to a critical Windows system function.
+pub fn is_critical_task_path(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower.contains("cachetask")
+        || lower.contains("msctfmonitor")
+        || lower.contains("autochk\\proxy")
+        || lower.contains("spaceport")
+        || lower.contains("softwareprotectionplatform")
+        || lower.contains("data integrity scan")
+        || lower.contains("verifiedpublishercertstorecheck")
+        || lower.contains("userinit")
+        || lower.contains("winlogon")
 }
 
 fn sanitize_name(name: &str) -> String {

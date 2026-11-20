@@ -33,8 +33,15 @@ fn main() -> Result<()> {
 
     unsafe {
         // Single instance: two copies would fight over service/tweak changes.
-        let _mutex = CreateMutexW(None, TRUE, w!("Global\\TothBoost_SingleInstance"));
-        if GetLastError() == ERROR_ALREADY_EXISTS {
+        // During self-test, use a dedicated mutex name so testing doesn't clash
+        // with an existing running user session.
+        let mutex_name = if self_test {
+            w!("Global\\TothBoost_SelfTestInstance")
+        } else {
+            w!("Global\\TothBoost_SingleInstance")
+        };
+        let _mutex = CreateMutexW(None, TRUE, mutex_name);
+        if !self_test && GetLastError() == ERROR_ALREADY_EXISTS {
             let text = to_wide_null("TothBoost is already running.");
             let title = to_wide_null("TothBoost");
             MessageBoxW(
