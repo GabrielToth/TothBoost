@@ -57,6 +57,7 @@ const CMD_PROFILE_SAVE: usize = 1041;
 const CMD_PROFILE_APPLY: usize = 1042;
 const CMD_PROFILE_DELETE: usize = 1043;
 const CMD_PROFILE_DEFAULT: usize = 1044;
+const CMD_PROFILE_EXTREME: usize = 1045;
 
 const TIMER_ENFORCE: usize = 1;
 const WM_LOAD: u32 = WM_APP + 1;
@@ -523,16 +524,17 @@ pub unsafe fn install(hwnd: HWND) -> bool {
         (
             "Profiles",
             &[
-                (CMD_PROFILE_REFRESH, "Refresh", 90),
-                (CMD_PROFILE_SAVE, "Save Current As...", 160),
-                (CMD_PROFILE_APPLY, "Apply Selected", 130),
-                (CMD_PROFILE_DELETE, "Delete Selected", 130),
-                (CMD_PROFILE_DEFAULT, "Restore Default", 140),
+                (CMD_PROFILE_REFRESH, "Refresh", 80),
+                (CMD_PROFILE_SAVE, "Save Current As...", 150),
+                (CMD_PROFILE_APPLY, "Apply Selected", 120),
+                (CMD_PROFILE_EXTREME, "Apply Extreme", 120),
+                (CMD_PROFILE_DEFAULT, "Restore Default", 130),
+                (CMD_PROFILE_DELETE, "Delete Selected", 120),
             ],
             ID_PROFILE_LIST,
             &[
-                (220, "Profile"),
-                (190, "Created"),
+                (180, "Profile"),
+                (180, "Created"),
                 (130, "Disabled Services"),
                 (100, "Tweaks On"),
                 (90, "Blocked"),
@@ -1008,6 +1010,7 @@ impl App {
             }
             CMD_PROFILE_SAVE => self.save_profile_dialog(),
             CMD_PROFILE_APPLY => self.apply_selected_profile(),
+            CMD_PROFILE_EXTREME => self.apply_extreme_profile(),
             CMD_PROFILE_DELETE => self.delete_selected_profile(),
             CMD_PROFILE_DEFAULT => self.apply_default_profile(),
 
@@ -1340,7 +1343,10 @@ impl App {
     }
 
     unsafe fn save_profile_dialog(&mut self) {
-        let Some(name) = prompt("Save current state as profile", "Default") else {
+        let default_name = selected_profile_row(self)
+            .and_then(|r| self.profiles.get(r).map(|p| p.name.as_str()))
+            .unwrap_or("Default");
+        let Some(name) = prompt("Save current state as profile (or overwrite existing):", default_name) else {
             return;
         };
         let trimmed = name.trim();
@@ -1352,6 +1358,16 @@ impl App {
             if !confirm(
                 "Overwrite the Default baseline with the CURRENT system state?\n\nThe original baseline will be lost.",
                 "Overwrite Default",
+            ) {
+                return;
+            }
+        } else if self.profiles.iter().any(|p| p.name.eq_ignore_ascii_case(trimmed)) {
+            if !confirm(
+                &format!(
+                    "Overwrite profile '{}' with the CURRENT system state?\n\nThis will update its saved services, tweaks, startup entries and blocklist.",
+                    trimmed
+                ),
+                "Overwrite Profile",
             ) {
                 return;
             }
@@ -1370,6 +1386,47 @@ impl App {
                 ));
             }
             Err(e) => notify(&format!("Could not save profile: {}", e), "Profiles"),
+        }
+    }
+
+    unsafe fn apply_extreme_profile(&mut self) {
+        let _ = ProfileService::ensure_extreme();
+        if let Some(row) = self
+            .profiles
+            .iter()
+            .position(|profile| profile.name.eq_ignore_ascii_case("Extreme"))
+        {
+            if !confirm(
+                "Apply the suggested EXTREME profile?\n\n\
+                This profile is extremely aggressive:\n\
+                • Disables 100% of non-critical services (leaves only essential OS core).\n\
+                • Disables all background apps & startup tasks.\n\
+                • Enables all performance tweaks and Ultimate power plan.\n\
+                • Blocks background telemetry processes.\n\n\
+                You can edit this profile at any time by changing settings and saving over it.",
+                "Apply Extreme Profile",
+            ) {
+                return;
+            }
+
+            let profile = self.profiles[row].clone();
+            let report = ProfileService::apply(&profile);
+            sync_enforcement();
+            self.reload_all();
+
+            set_status(&format!("Extreme profile applied — {}.", report.summary()));
+            if report.error_count > 0 {
+                notify(
+                    &format!(
+                        "{}\n\n{}",
+                        report.summary(),
+                        report.failures().iter().take(15).cloned().collect::<Vec<_>>().join("\n")
+                    ),
+                    "Profile applied with errors",
+                );
+            }
+        } else {
+            set_status("Extreme profile could not be loaded.");
         }
     }
 

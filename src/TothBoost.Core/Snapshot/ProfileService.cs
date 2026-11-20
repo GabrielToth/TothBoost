@@ -30,24 +30,44 @@ namespace TothBoost.Core.Snapshot
             public List<ProfileMeta> Profiles { get; set; } = new();
         }
 
-        /// <summary>Ensures the Default profile exists (created on first launch).</summary>
+        /// <summary>Ensures the Default and Extreme profiles exist (created on first launch).</summary>
         public static void EnsureDefault()
         {
             lock (Sync)
             {
                 var meta = LoadMeta();
-                if (meta.Profiles.Any(p => p.IsDefault)) return;
-
-                Directory.CreateDirectory(Root);
-                meta.Profiles.Add(new ProfileMeta
+                bool changed = false;
+                if (!meta.Profiles.Any(p => p.IsDefault))
                 {
-                    Name = "Default",
-                    CreatedUtc = DateTime.UtcNow,
-                    HostName = Environment.MachineName,
-                    IsDefault = true
-                });
-                meta.Current = "Default";
-                SaveMeta(meta);
+                    Directory.CreateDirectory(Root);
+                    meta.Profiles.Add(new ProfileMeta
+                    {
+                        Name = "Default",
+                        CreatedUtc = DateTime.UtcNow,
+                        HostName = Environment.MachineName,
+                        IsDefault = true
+                    });
+                    meta.Current = "Default";
+                    changed = true;
+                }
+
+                if (!meta.Profiles.Any(p => string.Equals(p.Name, "Extreme", StringComparison.OrdinalIgnoreCase)))
+                {
+                    Directory.CreateDirectory(Root);
+                    meta.Profiles.Add(new ProfileMeta
+                    {
+                        Name = "Extreme",
+                        CreatedUtc = DateTime.UtcNow,
+                        HostName = Environment.MachineName,
+                        IsDefault = false
+                    });
+                    changed = true;
+                }
+
+                if (changed)
+                {
+                    SaveMeta(meta);
+                }
             }
         }
 

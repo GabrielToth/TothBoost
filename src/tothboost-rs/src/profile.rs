@@ -74,7 +74,15 @@ impl ProfileService {
                 }
             }
         }
-        profiles.sort_by_key(|p| (!p.eq_ignore_ascii_case("Default"), p.to_lowercase()));
+        profiles.sort_by_key(|p| {
+            if p.eq_ignore_ascii_case("Default") {
+                (0, String::new())
+            } else if p.eq_ignore_ascii_case("Extreme") {
+                (1, String::new())
+            } else {
+                (2, p.to_lowercase())
+            }
+        });
         profiles
     }
 
@@ -134,27 +142,102 @@ impl ProfileService {
     }
 
     /// Creates the Default baseline on first run so the very first state of the
-    /// machine can always be restored. A legacy or incompatible Default file
-    /// (for example one written by the old .NET build) is preserved next to the
-    /// new one and replaced by a fresh capture.
+    /// machine can always be restored. Also ensures the suggested "Extreme"
+    /// profile exists on first run (barebones, maximum performance).
     pub fn ensure_default() -> Result<(), String> {
         let path = Self::get_profiles_dir().join("Default.json");
+        let mut need_default = true;
         if path.exists() {
             if Self::load_profile("Default").is_ok() {
+                need_default = false;
+            } else {
+                let stamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                let legacy_dir = Self::get_profiles_dir().join("legacy");
+                let _ = fs::create_dir_all(&legacy_dir);
+                let backup = legacy_dir.join(format!("Default-{}.json", stamp));
+                std::fs::rename(&path, &backup)
+                    .map_err(|e| format!("Cannot back up legacy Default profile: {}", e))?;
+                let _ = std::fs::remove_file(Self::get_profiles_dir().join("profiles.json"));
+            }
+        }
+        if need_default {
+            let data = Self::capture("Default");
+            Self::save_profile(&data)?;
+        }
+        let _ = Self::ensure_extreme();
+        Ok(())
+    }
+
+    /// Generates an extremely aggressive profile:
+    /// - 100% of available tweaks applied.
+    /// - 100% of non-critical services DISABLED (only protected core OS services remain).
+    /// - 100% of non-critical startup apps & scheduled tasks DISABLED.
+    /// - Background telemetry/updater processes added to blocklist.
+    pub fn create_extreme_profile() -> ProfileData {
+        let tweaks = RegistryTweaks::get_available_tweaks()
+            .into_iter()
+            .map(|tweak| (tweak.id, true))
+            .collect();
+
+        let services = SystemScanner::scan_services()
+            .into_iter()
+            .map(|service| {
+                let is_core = service.risk == RiskLevel::Protected || service.is_protected;
+                let start_type = if is_core {
+                    service.start_type
+                } else {
+                    4 // Disabled
+                };
+                (service.name, start_type)
+            })
+            .collect();
+
+        let startup = SystemScanner::scan_startup()
+            .into_iter()
+            .map(|item| {
+                let keep_enabled = item.classification().is_critical();
+                StartupState {
+                    name: item.name,
+                    kind: Some(item.kind),
+                    location: item.location,
+                    enabled: keep_enabled,
+                }
+            })
+            .collect();
+
+        let blocked_processes = vec![
+            "wermgr.exe".into(),
+            "compattelrunner.exe".into(),
+            "devicecensus.exe".into(),
+            "gamebarpresencewriter.exe".into(),
+            "smartscreen.exe".into(),
+            "microsoftedgeupdate.exe".into(),
+            "googleupdate.exe".into(),
+        ];
+
+        ProfileData {
+            name: "Extreme".into(),
+            created_utc: now_label(),
+            services,
+            tweaks,
+            startup,
+            tasks: Vec::new(),
+            blocked_processes,
+        }
+    }
+
+    /// Ensures the suggested Extreme profile exists.
+    pub fn ensure_extreme() -> Result<(), String> {
+        let path = Self::get_profiles_dir().join("Extreme.json");
+        if path.exists() {
+            if Self::load_profile("Extreme").is_ok() {
                 return Ok(());
             }
-            let stamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(0);
-            let legacy_dir = Self::get_profiles_dir().join("legacy");
-            let _ = fs::create_dir_all(&legacy_dir);
-            let backup = legacy_dir.join(format!("Default-{}.json", stamp));
-            std::fs::rename(&path, &backup)
-                .map_err(|e| format!("Cannot back up legacy Default profile: {}", e))?;
-            let _ = std::fs::remove_file(Self::get_profiles_dir().join("profiles.json"));
         }
-        let data = Self::capture("Default");
+        let data = Self::create_extreme_profile();
         Self::save_profile(&data)
     }
 

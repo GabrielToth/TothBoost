@@ -1011,6 +1011,25 @@ namespace TothBoost.App
             StatusText.Text = "Active profile set to: " + c.Name;
         }
 
+        private async void BtnApplyExtremeProfile_Click(object sender, RoutedEventArgs e)
+        {
+            _engine.EnsureExtremeProfile();
+            var r = MessageBox.Show(
+                "Apply the suggested EXTREME profile?\n\n" +
+                "This profile is extremely aggressive:\n" +
+                "• Disables 100% of non-critical Windows services (leaves only essential OS core).\n" +
+                "• Disables all background apps and startup tasks.\n" +
+                "• Enables all performance tweaks and Ultimate power plan.\n\n" +
+                "You can edit this profile at any time by changing settings and overwriting it.",
+                "Apply Extreme Profile",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (r != MessageBoxResult.Yes) return;
+            await RunAction(() => _engine.ApplyProfile("Extreme"), "Apply Extreme Profile");
+            RefreshProfilesUi();
+        }
+
         private async void BtnProfileApply_Click(object sender, RoutedEventArgs e)
         {
             if ((sender as Button)?.DataContext is not ProfileCard c) return;

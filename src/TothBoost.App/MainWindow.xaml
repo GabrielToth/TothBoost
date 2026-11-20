@@ -312,12 +312,20 @@
                                     </StackPanel>
                                 </DockPanel>
 
-                                <Button x:Name="BtnSaveProfile" Style="{StaticResource BtnGreen}" HorizontalAlignment="Left" Padding="14,8" Click="BtnSaveProfile_Click" Margin="0,0,0,12" ToolTip="Saves current system configuration into active profile">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Save Current State" VerticalAlignment="Center" FontWeight="Bold"/>
-                                    </StackPanel>
-                                </Button>
+                                <WrapPanel Margin="0,0,0,12">
+                                    <Button x:Name="BtnSaveProfile" Style="{StaticResource BtnGreen}" Padding="14,8" Click="BtnSaveProfile_Click" Margin="0,0,8,0" ToolTip="Saves current system configuration into active profile">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Save Current State" VerticalAlignment="Center" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="BtnApplyExtremeProfile" Style="{StaticResource BtnAccent}" Padding="14,8" Click="BtnApplyExtremeProfile_Click" ToolTip="Applies the Extreme barebones profile (all tweaks, only core Windows services)">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Apply Extreme (Barebones)" VerticalAlignment="Center" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Button>
+                                </WrapPanel>
 
                                 <!-- Cards View -->
                                 <ItemsControl x:Name="ProfileCards" Visibility="Visible">

@@ -43,12 +43,65 @@ namespace TothBoost.Core
 
         public void EnsureBaseline()
         {
-            if (SnapshotService.BaselineExists) return;
+            if (!SnapshotService.BaselineExists)
+            {
+                var services = GetServices();
+                var tasks = GetTasks();
+                var startups = GetStartups();
+                SnapshotService.EnsureBaseline(services, tasks, startups);
+                SaveCapture("Default");
+            }
+            EnsureExtremeProfile();
+        }
+
+        public void EnsureExtremeProfile()
+        {
+            if (ProfileService.CaptureExists("Extreme")) return;
             var services = GetServices();
             var tasks = GetTasks();
             var startups = GetStartups();
-            SnapshotService.EnsureBaseline(services, tasks, startups);
-            SaveCapture("Default");
+            var tweaks = GetTweaks();
+
+            ProfileService.Create("Extreme");
+
+            var capture = new ProfileCapture
+            {
+                Name = "Extreme",
+                CapturedAt = DateTime.Now,
+                Services = services
+                    .Select(s => new ProfileServiceState
+                    {
+                        Name = s.Name,
+                        StartKind = s.IsProtected ? (int)s.StartKind : (int)ServiceStartKind.Disabled,
+                        Running = s.IsProtected && s.RunningState == "Running"
+                    })
+                    .ToList(),
+                Tasks = tasks
+                    .Select(t => new ProfileTaskState
+                    {
+                        FullPath = t.FullPath,
+                        Enabled = false
+                    })
+                    .ToList(),
+                Startups = startups
+                    .Select(i => new ProfileStartupState
+                    {
+                        Name = i.Name,
+                        Location = i.Location,
+                        Exists = i.Existing,
+                        DisabledByTothBoost = true
+                    })
+                    .ToList(),
+                Tweaks = tweaks
+                    .Select(t => new ProfileTweakState
+                    {
+                        Id = t.Id,
+                        Applied = true
+                    })
+                    .ToList()
+            };
+            ProfileService.SaveCapture("Extreme", capture);
+            ProfileService.MarkSaved("Extreme");
         }
 
         public System.Threading.Tasks.Task<UpdateCheckResult> CheckForUpdatesAsync() => UpdateChecker.CheckForUpdatesAsync();

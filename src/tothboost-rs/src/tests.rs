@@ -189,6 +189,52 @@ fn test_blocklist_roundtrip_persistence() {
 }
 
 #[test]
+fn test_ensure_default_creates_both_default_and_extreme() {
+    let _guard = PROFILE_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = std::env::temp_dir().join(format!("tothboost-extreme-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::env::set_var("TOTHBOOST_PROFILE_DIR", &dir);
+
+    ProfileService::ensure_default().expect("ensure_default must succeed");
+
+    // Both profiles must exist
+    let default_prof = ProfileService::load_profile("Default").expect("Default must exist");
+    assert_eq!(default_prof.name, "Default");
+
+    let extreme_prof = ProfileService::load_profile("Extreme").expect("Extreme must exist");
+    assert_eq!(extreme_prof.name, "Extreme");
+
+    // Extreme tweaks must all be enabled
+    assert!(!extreme_prof.tweaks.is_empty());
+    assert!(extreme_prof.tweaks.iter().all(|(_, applied)| *applied));
+
+    // Extreme non-protected services must be set to 4 (Disabled)
+    use crate::scanner::classify_service;
+    for (name, start_type) in &extreme_prof.services {
+        let (risk, protected) = classify_service(name);
+        if !protected && risk != RiskLevel::Protected {
+            assert_eq!(*start_type, 4, "Service {} must be disabled in Extreme profile", name);
+        }
+    }
+
+    // Profiles list must have Default first, then Extreme
+    let list = ProfileService::list_profiles();
+    assert_eq!(list.get(0).map(|s| s.as_str()), Some("Default"));
+    assert_eq!(list.get(1).map(|s| s.as_str()), Some("Extreme"));
+
+    // User can edit and overwrite Extreme profile
+    let mut modified = extreme_prof.clone();
+    modified.blocked_processes.push("custom_blocked.exe".into());
+    assert!(ProfileService::save_profile(&modified).is_ok());
+
+    let reloaded = ProfileService::load_profile("Extreme").expect("Reload edited Extreme");
+    assert!(reloaded.blocked_processes.contains(&"custom_blocked.exe".to_string()));
+
+    std::env::remove_var("TOTHBOOST_PROFILE_DIR");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn test_ensure_default_replaces_legacy_profile() {
     let _guard = PROFILE_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = std::env::temp_dir().join(format!("tothboost-default-test-{}", std::process::id()));
